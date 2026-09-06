@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Grimoire</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="boot-dark">
+    <div id="vignette" aria-hidden="true"></div>
+    <div id="dark-acts" class="hidden">
+        <button type="button" id="btn-strike" data-hint="matchChoice">Strike Match</button>
+        <button type="button" id="btn-trim-dark" class="hidden" data-hint="trim">Trim Wick</button>
+        <button type="button" id="btn-sit-dark" class="hidden" data-hint="sitChoice">Sit in the dark</button>
+    </div>
+    <div id="settings-backdrop" class="hidden"></div>
+
+    <div id="boot-veil">
+        <p class="boot-title">Grimoire</p>
+        <button type="button" id="btn-light" data-hint="light">Light the Candle</button>
+    </div>
+
+    <div id="game-shell">
+        <header>
+            <div class="header-row">
+                <div id="tablist" class="hidden" role="tablist" aria-label="Rooms">
+                    <button type="button" role="tab" id="tab-desk" aria-controls="panel-desk" aria-selected="true" data-hint="desk">Desk</button>
+                    <button type="button" role="tab" id="tab-study" aria-controls="panel-study" aria-selected="false" data-hint="study">Study</button>
+                    <button type="button" role="tab" id="tab-estate" class="hidden" aria-controls="panel-estate" aria-selected="false" data-hint="estate">Estate</button>
+                    <button type="button" role="tab" id="tab-binding" class="hidden" aria-controls="panel-binding" aria-selected="false" disabled data-hint="binding">Binding</button>
+                </div>
+                <button type="button" id="btn-settings" class="hidden" aria-label="Settings" data-hint="settings">…</button>
+            </div>
+            <h1>Grimoire</h1>
+            <p id="subheading" class="italic">a heavy book, brass-bound, dusty.</p>
+        </header>
+
+        <div id="layout">
+            <aside id="ledger" class="panel" aria-label="Ledger">
+                <div class="resource-panel">
+                    <div class="resource" data-row="insight" data-hint="insight">
+                        <span class="label">Insight:</span>
+                        <span class="value js-res-insight">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="tallow" data-hint="tallow">
+                        <span class="label">Tallow:</span>
+                        <span class="value js-res-tallow">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="ink" data-hint="ink">
+                        <span class="label">Ink:</span>
+                        <span class="value js-res-ink">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="passages" data-hint="passages">
+                        <span class="label">Passages:</span>
+                        <span class="value js-res-passages">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="quills" data-hint="quills">
+                        <span class="label">Quills:</span>
+                        <span class="value js-res-quills">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="lexicons" data-hint="lexicons">
+                        <span class="label">Lexicons:</span>
+                        <span class="value js-res-lexicons">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="matches" data-hint="matches">
+                        <span class="label">Matches:</span>
+                        <span class="value js-res-matches">0</span>
+                    </div>
+                </div>
+            </aside>
+
+            <main id="workspace">
+                <section id="panel-desk" role="tabpanel" aria-labelledby="tab-desk">
+                    <div id="grimoire-viewport" class="panel">
+                        <div id="desk-stage">
+                        <div id="book-container">
+                            <pre id="grimoire-base-art">
+    __________________   __________________
+.-/|                  \ /                  |\-.
+||||                  |                   ||||
+||||                  |                   ||||
+||||                  |                   ||||
+||||                  |                   ||||
+||||                  |                   ||||
+||||                  |                   ||||
+||||                  |                   ||||
+||||                  |                   ||||
+||||__________________|___________________||||
+||/===================\|/===================\||
+`--------------------~___~-------------------''</pre>
+                            <div id="rune-overlay"></div>
+                        </div>
+                        <div id="candle-container" data-hint="candle">
+                            <div id="candle-glow" aria-hidden="true"></div>
+                            <pre id="candle-art"></pre>
+                            <div id="candle-drip" aria-hidden="true">.</div>
+                            <div id="candle-smoke" class="hidden" aria-hidden="true">
+                                <span class="smoke s1">'</span>
+                                <span class="smoke s2">~</span>
+                                <span class="smoke s3">.</span>
+                            </div>
+                            <div id="candle-readout" class="hidden" data-hint="candleMeter">CANDLE: 100%</div>
+                        </div>
+                        </div>
+                    </div>
+
+                    <div id="early-resources" class="panel">
+                        <div class="resource" data-row="insight" data-hint="insight">
+                            <span class="label">Insight:</span>
+                            <span class="value js-res-insight">0</span>
+                        </div>
+                        <div class="resource hidden" data-row="tallow" data-hint="tallow">
+                            <span class="label">Tallow:</span>
+                            <span class="value js-res-tallow">0</span>
+                        </div>
+                        <div class="resource hidden" data-row="ink" data-hint="ink">
+                            <span class="label">Ink:</span>
+                            <span class="value js-res-ink">0</span>
+                        </div>
+                        <div class="resource hidden" data-row="passages" data-hint="passages">
+                            <span class="label">Passages:</span>
+                            <span class="value js-res-passages">0</span>
+                        </div>
+                        <div class="resource hidden" data-row="quills" data-hint="quills">
+                            <span class="label">Quills:</span>
+                            <span class="value js-res-quills">0</span>
+                        </div>
+                        <div class="resource hidden" data-row="lexicons" data-hint="lexicons">
+                            <span class="label">Lexicons:</span>
+                            <span class="value js-res-lexicons">0</span>
+                        </div>
+                        <div class="resource hidden" data-row="matches" data-hint="matches">
+                            <span class="label">Matches:</span>
+                            <span class="value js-res-matches">0</span>
+                        </div>
+                    </div>
+
+                    <div id="action-buttons" class="panel">
+                        <button type="button" id="btn-decipher" data-hint="decipher">Decipher Faded Glyph</button>
+                        <button type="button" id="btn-trim" class="hidden" data-hint="trim">Trim Wick</button>
+                        <button type="button" id="btn-distill" class="hidden" data-hint="distill">Distill Ink (5 tallow)</button>
+                        <button type="button" id="btn-doubt" class="hidden secret" data-hint="doubt">[Doubt Memory]</button>
+                    </div>
+                    <div id="project-list" class="project-list"></div>
+                </section>
+
+                <section id="panel-study" class="hidden" role="tabpanel" aria-labelledby="tab-study">
+                    <div id="job-panel" class="panel hidden">
+                        <h2>Assignments</h2>
+                        <p class="italic muted">each quill has one task. the sum is the feathers you bound.</p>
+                        <div id="job-rows"></div>
+                        <button type="button" id="btn-lexicon" class="hidden" data-hint="lexicon">Bind Lexicon (5 Passages, 8 Ink)</button>
+                    </div>
+                    <div id="project-list-study" class="project-list"></div>
+                    <div id="codex-list" class="panel hidden"></div>
+                </section>
+
+                <section id="panel-estate" class="hidden panel" role="tabpanel" aria-labelledby="tab-estate">
+                    <h2>Estate</h2>
+                    <div id="estate-lines" tabindex="-1"></div>
+                </section>
+
+                <section id="panel-binding" class="hidden panel" role="tabpanel" aria-labelledby="tab-binding">
+                    <h2>Binding</h2>
+                    <p id="binding-note" class="italic">sealed. the rite is not for this sitting.</p>
+                </section>
+            </main>
+
+            <aside id="journal-column">
+                <div id="journal-blotter">
+                    <div class="journal-head">
+                        <span class="journal-title">the blotter</span>
+                        <span class="journal-sub">what the room admits</span>
+                    </div>
+                    <div id="journal-log" class="journal-page" aria-label="Journal"></div>
+                </div>
+                <div id="aria-live" class="sr-only" aria-live="polite"></div>
+            </aside>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="hidden panel" role="dialog" aria-labelledby="settings-title">
+        <h2 id="settings-title">the copy</h2>
+        <p id="checksum-warn" class="hidden warn">the copy is smudged. you may export the raw page. the last clean save is kept.</p>
+        <label class="setting-row"><input type="checkbox" id="chk-reduce-motion"> Reduce Motion</label>
+        <label class="setting-row"><input type="checkbox" id="chk-disable-bleed"> Disable Bleed FX</label>
+        <label class="setting-row"><input type="checkbox" id="chk-disable-flicker"> Disable flame flicker</label>
+        <label class="setting-row"><input type="checkbox" id="chk-show-exact"> Show exact upgrade numbers</label>
+        <div class="setting-actions">
+            <button type="button" id="btn-export">Export</button>
+            <button type="button" id="btn-export-corrupt">Export smudged page</button>
+        </div>
+        <label class="setting-row" for="export-box">Export</label>
+        <textarea id="export-box" rows="3" spellcheck="false"></textarea>
+        <label class="setting-row" for="import-box">Import</label>
+        <textarea id="import-box" rows="3" spellcheck="false"></textarea>
+        <button type="button" id="btn-import">Import</button>
+        <p class="muted">to start a new sitting, type ABANDON then press the button.</p>
+        <input type="text" id="abandon-input" autocomplete="off" aria-label="Type ABANDON to wipe">
+        <p id="abandon-err" class="warn hidden"></p>
+        <button type="button" id="btn-abandon">Abandon this copy</button>
+        <button type="button" id="btn-close-settings">Close</button>
+    </div>
+
+    <div id="hint-card" class="hidden" role="tooltip"></div>
+
+    <script src="js/content.js"></script>
+    <script src="js/systems/economics.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/systems/candle.js"></script>
+    <script src="js/systems/pages.js"></script>
+    <script src="js/systems/jobs.js"></script>
+    <script src="js/systems/projects.js"></script>
+    <script src="js/systems/bleed.js"></script>
+    <script src="js/view.js"></script>
+    <script src="js/engine.js"></script>
+    <script src="js/debug.js"></script>
+    <script src="main.js"></script>
+</body>
+
+</html>
