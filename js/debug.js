@@ -5,7 +5,10 @@ Grimoire.DEBUG = true;
 Grimoire.debug = {
     freezeOil: false,
     panel: null,
+    fab: null,
     hidden: false,
+    titleTaps: 0,
+    titleTapTimer: 0,
 
     mount: function () {
         if (this.panel) return;
@@ -43,17 +46,35 @@ Grimoire.debug = {
             '<button type="button" data-dbg="settings">Open settings</button>' +
             '<button type="button" data-dbg="reset">Reset run</button>' +
             '</div>' +
-            '<p class="debug-foot">F2 or Ctrl+Shift+D shows / hides. Hide leaves no chip.</p>';
+            '<p class="debug-foot">Tap dbg (top left), or F2 / Ctrl+Shift+D. Five taps on the title also works.</p>';
         document.body.appendChild(wrap);
+        var fab = document.createElement('button');
+        fab.type = 'button';
+        fab.id = 'debug-fab';
+        fab.textContent = 'dbg';
+        fab.setAttribute('aria-label', 'Toggle debug panel');
+        document.body.appendChild(fab);
         this.panel = wrap;
+        this.fab = fab;
         this.hidden = false;
         this.injectCss();
         this.home();
+        this.syncFab();
         var self = this;
+        fab.addEventListener('click', function (e) {
+            e.preventDefault();
+            self.toggle();
+        });
         wrap.addEventListener('click', function (e) {
             var btn = e.target.closest('[data-dbg]');
             if (btn) self.run(btn.getAttribute('data-dbg'));
             if (e.target.closest('#debug-hide')) self.hide();
+        });
+        document.addEventListener('click', function (e) {
+            var el = e.target;
+            if (!el || !el.closest) return;
+            if (!el.closest('h1') && !el.closest('.boot-title')) return;
+            self.onTitleTap();
         });
         document.addEventListener('keydown', function (e) {
             if (!self.isToggleKey(e)) return;
@@ -62,6 +83,24 @@ Grimoire.debug = {
             e.preventDefault();
             self.toggle();
         }, true);
+    },
+
+    onTitleTap: function () {
+        var self = this;
+        this.titleTaps += 1;
+        clearTimeout(this.titleTapTimer);
+        if (this.titleTaps >= 5) {
+            this.titleTaps = 0;
+            this.show();
+            return;
+        }
+        this.titleTapTimer = setTimeout(function () { self.titleTaps = 0; }, 900);
+    },
+
+    syncFab: function () {
+        if (!this.fab) return;
+        this.fab.setAttribute('aria-expanded', this.hidden ? 'false' : 'true');
+        this.fab.classList.toggle('is-open', !this.hidden);
     },
 
     isToggleKey: function (e) {
@@ -92,6 +131,7 @@ Grimoire.debug = {
         this.panel.classList.add('debug-hidden');
         this.panel.setAttribute('aria-hidden', 'true');
         this.home();
+        this.syncFab();
     },
 
     show: function () {
@@ -100,6 +140,7 @@ Grimoire.debug = {
         this.panel.classList.remove('debug-hidden');
         this.panel.removeAttribute('aria-hidden');
         this.home();
+        this.syncFab();
     },
 
     toggle: function () {
@@ -112,15 +153,20 @@ Grimoire.debug = {
         var css = document.createElement('style');
         css.id = 'debug-css';
         css.textContent =
+            '#debug-fab{position:fixed;top:max(8px,env(safe-area-inset-top,0px));left:8px;z-index:210;' +
+            'min-width:44px;min-height:44px;margin:0;padding:6px 10px;border:1px solid #f5a623;background:#120e18;' +
+            'color:#f5a623;font:12px/1 "Courier New",monospace;box-shadow:0 4px 12px rgba(0,0,0,.5)}' +
+            '#debug-fab.is-open{background:#2a1c08}' +
             '#debug-panel{position:fixed;right:8px;bottom:8px;z-index:200;width:min(360px,calc(100vw - 16px));' +
             'background:#120e18;border:1px solid #f5a623;color:#d4cece;font:12px/1.3 "Courier New",monospace;' +
-            'padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.6)}' +
+            'padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);max-height:calc(100dvh - 120px);overflow:auto}' +
             '#debug-panel.debug-hidden{display:none!important}' +
-            '@media (max-width:899px){#debug-panel{bottom:calc(92px + env(safe-area-inset-bottom,0px))}}' +
+            '@media (max-width:899px){#debug-panel{left:8px;right:8px;width:auto;' +
+            'bottom:calc(92px + env(safe-area-inset-bottom,0px));max-height:calc(100dvh - 180px)}}' +
             '.debug-head{display:flex;gap:8px;align-items:center;margin-bottom:6px;color:#f5a623}' +
             '.debug-head span{color:#888;font-size:10px;flex:1}' +
             '.debug-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px}' +
-            '#debug-panel button{margin:0;padding:4px 7px;font-size:11px}' +
+            '#debug-panel button{margin:0;padding:8px 10px;font-size:12px;min-height:40px}' +
             '.debug-foot{margin:6px 0 0;color:#666;font-size:10px}';
         document.head.appendChild(css);
     },
