@@ -46,6 +46,7 @@ Grimoire.projects = {
         if (p.capKey === 'lamps' && s.generators.lamps >= (p.cap || 3)) return true;
         if (p.id === 'spare_matches' && s.resources.matches >= 12) return true;
         if (p.id === 'listen_shutter' && this.owned(s, p.id) >= 3) return true;
+        if (p.id === 'press_once' && this.owned(s, p.id) >= (p.cap || 3)) return true;
         if (p.once && Grimoire.hasUnlock(s, p.id)) return true;
         return false;
     },
@@ -60,7 +61,9 @@ Grimoire.projects = {
         if (p.auto) return false;
         if (this.atCap(s, p) && p.once) return false;
         if (p.id === 'listen_shutter' && this.owned(s, p.id) >= 3) return false;
+        if (p.id === 'press_once' && this.atCap(s, p) && !(s.meta.pressOnceLeft > 0)) return false;
         if (typeof p.reveal === 'function' && p.reveal(s)) return true;
+        if (p.strictReveal) return false;
         return this.withinTwoX(s, p);
     },
 
@@ -82,6 +85,10 @@ Grimoire.projects = {
         if (key === 'ink') return Grimoire.hasUnlock(s, 'catalog_page');
         if (key === 'passages') return s.page.pagesFinished >= 1;
         if (key === 'lexicons') return Grimoire.hasUnlock(s, 'collation');
+        if (key === 'vellum') return (s.resources.vellum || 0) > 0 || Grimoire.hasUnlock(s, 'light_cellars');
+        if (key === 'folios') return (s.resources.folios || 0) > 0 || Grimoire.hasUnlock(s, 'light_library');
+        if (key === 'extracts') return (s.resources.extracts || 0) > 0 || Grimoire.hasUnlock(s, 'light_glasshouse');
+        if (key === 'silver') return (s.resources.silver || 0) > 0 || Grimoire.hasUnlock(s, 'light_vault');
         return false;
     },
 
@@ -166,6 +173,7 @@ Grimoire.projects = {
                 break;
             case 'index':
                 Grimoire.addUnlock(s, 'index');
+                Grimoire.mark('resources');
                 break;
             case 'under_text':
                 s.meta.cognitiveAperture = 1.2;
@@ -207,6 +215,23 @@ Grimoire.projects = {
             case 'codex_bind':
                 Grimoire.addUnlock(s, 'codex_bind');
                 Grimoire.mark('codex');
+                break;
+            case 'light_cellars':
+            case 'light_library':
+            case 'light_glasshouse':
+            case 'light_vault':
+                Grimoire.addUnlock(s, p.id);
+                if (Grimoire.estate) Grimoire.estate.onLit(s, p.id.replace('light_', ''));
+                break;
+            case 'mechanical_cataloger':
+                Grimoire.addUnlock(s, 'mechanical_cataloger');
+                Grimoire.mark('estate');
+                break;
+            case 'packet_gate':
+                s.meta.packetLeft = true;
+                Grimoire.addUnlock(s, 'packet_gate');
+                Grimoire.log(s, Grimoire.CONTENT.packetObit, { highlight: true });
+                Grimoire.mark('estate', 'subhead');
                 break;
             default:
                 break;
@@ -260,22 +285,46 @@ Grimoire.projects = {
             var p = list[i];
             if (!this.visibleOnTab(p, tab)) continue;
             if (!this.isRevealed(s, p) && !this.atCap(s, p)) continue;
+            if (p.id === 'press_once' && this.atCap(s, p) && !(s.meta.pressOnceLeft > 0)) continue;
             if (this.atCap(s, p) && (p.once || p.id === 'listen_shutter')) continue;
             out.push(p);
         }
+        out.sort(function (a, b) {
+            return Grimoire.projects.listRank(s, a) - Grimoire.projects.listRank(s, b);
+        });
         return out;
     },
 
+    listRank: function (s, p) {
+        if (p.id === 'press_once') return 80;
+        if (p.kind === 'gate' || p.kind === 'building') return this.owned(s, p.id) ? 20 : 0;
+        if (p.once) return 10;
+        return 40;
+    },
+
     tease: function (s, tab) {
+        var prefer = tab === 'estate'
+            ? ['light_cellars', 'light_library', 'packet_gate', 'mechanical_cataloger', 'light_vault', 'light_glasshouse']
+            : ['open_shutters', 'attend_lesson', 'collation', 'catalog_page', 'bind_quill'];
         var list = Grimoire.CONTENT.projects;
+        var found = [];
         for (var i = 0; i < list.length; i++) {
             var p = list[i];
             if (p.auto || this.visibleOnTab(p, tab) === false) continue;
             if (this.isRevealed(s, p) || this.atCap(s, p)) continue;
-            if (typeof p.reveal === 'function' && !p.reveal(s) && !this.nearTease(s, p)) continue;
-            return p;
+            if (typeof p.teaseWhen === 'function') {
+                if (!p.teaseWhen(s)) continue;
+            } else if (typeof p.reveal === 'function' && !p.reveal(s) && !this.nearTease(s, p)) {
+                continue;
+            }
+            found.push(p);
         }
-        return null;
+        for (var g = 0; g < prefer.length; g++) {
+            for (var j = 0; j < found.length; j++) {
+                if (found[j].id === prefer[g]) return found[j];
+            }
+        }
+        return found[0] || null;
     },
 
     nearTease: function (s, p) {
@@ -301,7 +350,9 @@ Grimoire.projects = {
         if (dim) return '???? — ' + cost;
         if (p.id === 'press_once') {
             var left = s.meta.pressOnceLeft || 0;
-            if (left > 0) return p.title + ' — ' + cost + ' · ' + left + ' left';
+            var packs = this.owned(s, p.id) + '/' + (p.cap || 3);
+            if (left > 0) return p.title + ' — ' + cost + ' · ' + packs + ' · ' + left + ' left';
+            return p.title + ' — ' + cost + ' · ' + packs;
         }
         return p.title + ' — ' + cost;
     },
@@ -329,10 +380,9 @@ Grimoire.projects = {
             case 'press_once': {
                 var left = s.meta.pressOnceLeft || 0;
                 var base = 1 + 0.1 * (s.generators.nibs || 0);
-                var nextCost = this.costLabel(s, p);
-                return 'Each buy adds 15 charges to a pool. Decipher spends 1 charge for +1 Insight. Buying again adds 15 more; it does not raise the +1. Pool: ' +
-                    left + '. Next Decipher: ' + this.rateStr(left > 0 ? base + 1 : base, 1) +
-                    ' Insight. Grey means you cannot afford another buy (' + nextCost + '), not that the pool is empty.';
+                var packs = owned + '/' + (p.cap || 3);
+                return 'A short boost: ' + packs + ' packs. Each pack adds 15 charges; Decipher spends 1 for +1 Insight. It does not raise the +1. Pool: ' +
+                    left + '. Next Decipher: ' + this.rateStr(left > 0 ? base + 1 : base, 1) + ' Insight.';
             }
             case 'steady_hand': {
                 var den = s.meta.stabilizeDenom || 4;
@@ -367,14 +417,14 @@ Grimoire.projects = {
                 return 'Oil cap ' + fmt(c.oilCap(s)) + ' → ' + fmt(c.OIL_CAP + 60 * (lp + 1)) + '. ' + lp + ' / 3.';
             }
             case 'attend_lesson':
-                return 'Unlock job Attend: 0.08 runes/s per assigned quill. Does not turn the page.';
+                return 'Unlock job Attend: 0.08 runes/s per assigned quill. Slow. A page takes minutes.';
             case 'collation': {
                 var boards = Math.min(10, (s.generators.boards || 0) + 1);
                 var yieldN = Math.max(1, Math.floor(Math.pow(1 + 0.06 * boards, 2)));
                 return 'Unlock Bind Lexicon (5 Passages, 8 Ink → ' + yieldN + ' Lexicon). +1 collation board.';
             }
             case 'index':
-                return 'Number the chapter. No resource change.';
+                return 'Number the chapter. Marks that stayed are shown as a percent.';
             case 'under_text':
                 return 'Cognitive Aperture 1 → 1.2. Bleed +12 (now ' + Math.floor(s.meta.bleedLevel || 0) + ').';
             case 'suppress':
@@ -396,6 +446,26 @@ Grimoire.projects = {
                 return 'Vignette darkness ×0.62. The wick still burns.';
             case 'codex_bind':
                 return 'List completed sentences in the Study.';
+            case 'light_cellars':
+                return 'Light the Cellars. Then a hide can be rendered into vellum.';
+            case 'light_library':
+                return 'Light the Library. Collation needs vellum and ink.';
+            case 'light_glasshouse':
+                return 'Light the Glasshouse. Extracts drip on the 80-minute season.';
+            case 'light_vault':
+                return 'Light the Vault. Charge a bath with surplus ink for silver.';
+            case 'tool_cellars':
+                return 'Render finishes faster. Owned: ' + owned + '.';
+            case 'tool_library':
+                return 'Collation finishes faster. Owned: ' + owned + '.';
+            case 'tool_glasshouse':
+                return 'Extract drip faster. Owned: ' + owned + '.';
+            case 'tool_vault':
+                return 'Bath finishes faster. Owned: ' + owned + '.';
+            case 'mechanical_cataloger':
+                return 'Library collations finish while you walk elsewhere. Permanent.';
+            case 'packet_gate':
+                return 'Leave 1 Lexicon and 1 Folio on the gravel. Nothing returns.';
             default:
                 return '';
         }
@@ -408,6 +478,10 @@ Grimoire.projects = {
         if (k === 'oil') return 'Oil';
         if (k === 'passages') return 'Passages';
         if (k === 'lexicons') return 'Lexicons';
+        if (k === 'vellum') return 'Vellum';
+        if (k === 'folios') return 'Folios';
+        if (k === 'extracts') return 'Extracts';
+        if (k === 'silver') return 'Silver';
         return k;
     }
 };

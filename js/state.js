@@ -3,7 +3,7 @@ var Grimoire = window.Grimoire || (window.Grimoire = {});
 Grimoire.SAVE_KEY = 'grimoire.v1';
 Grimoire.SAVE_BAK = 'grimoire.v1.bak';
 Grimoire.WIPE_FLAG = 'grimoire.wipe';
-Grimoire.SAVE_VERSION = 1;
+Grimoire.SAVE_VERSION = 2;
 Grimoire.wiping = false;
 
 Grimoire.dirty = {
@@ -19,7 +19,9 @@ Grimoire.dirty = {
     settings: true,
     vignette: true,
     subhead: true,
-    codex: true
+    codex: true,
+    estate: true,
+    study: true
 };
 
 Grimoire.mark = function () {
@@ -54,7 +56,8 @@ Grimoire.defaultState = function () {
             silver: 0,
             extracts: 0,
             obituaries: 0,
-            cinders: 0
+            cinders: 0,
+            folios: 0
         },
         generators: {
             quills: 0,
@@ -138,7 +141,28 @@ Grimoire.defaultState = function () {
             lastInsightCatchup: 0,
             deskRevealed: false,
             wickSeen: false,
-            snuffs: 0
+            snuffs: 0,
+            tallowLogged: false,
+            inkLogged: false,
+            estateVisited: false,
+            estateRoom: null,
+            dispatchedQuill: null,
+            estateSeen: { hall: true, gate: true, cellars: true },
+            estateBatches: {
+                cellars: { active: false, progress: 0, usedExtract: false },
+                library: { active: false, progress: 0, usedExtract: false },
+                vault: { active: false, progress: 0, usedExtract: false },
+                glasshouse: { active: false, progress: 0, usedExtract: false }
+            },
+            packetLeft: false,
+            vellumLogged: false,
+            extractsLogged: false,
+            silverLogged: false,
+            folioLogged: false,
+            estateFind: null,
+            estateBuff: null,
+            estateFindCool: 0,
+            estateEntered: {}
         }
     };
 };
@@ -216,7 +240,28 @@ Grimoire.serializable = function (s) {
             lastLogRepeat: s.meta.lastLogRepeat,
             deskRevealed: s.meta.deskRevealed,
             wickSeen: s.meta.wickSeen,
-            snuffs: s.meta.snuffs || 0
+            snuffs: s.meta.snuffs || 0,
+            tallowLogged: !!s.meta.tallowLogged,
+            inkLogged: !!s.meta.inkLogged,
+            estateVisited: !!s.meta.estateVisited,
+            estateRoom: s.meta.estateRoom || null,
+            dispatchedQuill: s.meta.dispatchedQuill || null,
+            estateSeen: s.meta.estateSeen || { hall: true, gate: true, cellars: true },
+            estateBatches: s.meta.estateBatches || {
+                cellars: { active: false, progress: 0, usedExtract: false },
+                library: { active: false, progress: 0, usedExtract: false },
+                vault: { active: false, progress: 0, usedExtract: false },
+                glasshouse: { active: false, progress: 0, usedExtract: false }
+            },
+            packetLeft: !!s.meta.packetLeft,
+            vellumLogged: !!s.meta.vellumLogged,
+            extractsLogged: !!s.meta.extractsLogged,
+            silverLogged: !!s.meta.silverLogged,
+            folioLogged: !!s.meta.folioLogged,
+            estateFind: s.meta.estateFind || null,
+            estateBuff: s.meta.estateBuff || null,
+            estateFindCool: s.meta.estateFindCool || 0,
+            estateEntered: s.meta.estateEntered || {}
         }
     };
 };
@@ -249,6 +294,10 @@ Grimoire.migrate = function (raw) {
         if (base.meta.deskRevealed && base.resources.oil > 0) base.meta.candleLit = true;
     }
     if (!base.meta.snuffs && base.meta.darknessSeen) base.meta.snuffs = 1;
+    if (base.resources.tallow >= 1) base.meta.tallowLogged = true;
+    if (base.resources.ink >= 1) base.meta.inkLogged = true;
+    if (base.resources.folios == null) base.resources.folios = 0;
+    if (Grimoire.estate && Grimoire.estate.ensure) Grimoire.estate.ensure(base);
     if (!base.page.runes || !base.page.runes.length) {
         Grimoire.pages.generate(base);
     }
@@ -394,6 +443,42 @@ Grimoire.addUnlock = function (s, id) {
         s.unlocks.push(id);
         Grimoire.mark('layout', 'projects', 'buttons', 'tabs');
     }
+};
+
+Grimoire.noteFirstTallow = function (s) {
+    if (s.meta.tallowLogged || s.resources.tallow < 1) return;
+    s.meta.tallowLogged = true;
+    Grimoire.log(s, Grimoire.CONTENT.firstTallow);
+};
+
+Grimoire.noteFirstInk = function (s) {
+    if (s.meta.inkLogged || s.resources.ink < 1) return;
+    s.meta.inkLogged = true;
+    Grimoire.log(s, Grimoire.CONTENT.firstInk);
+};
+
+Grimoire.noteFirstVellum = function (s) {
+    if (s.meta.vellumLogged || s.resources.vellum < 1) return;
+    s.meta.vellumLogged = true;
+    Grimoire.log(s, Grimoire.CONTENT.firstVellum);
+};
+
+Grimoire.noteFirstExtracts = function (s) {
+    if (s.meta.extractsLogged || s.resources.extracts < 1) return;
+    s.meta.extractsLogged = true;
+    Grimoire.log(s, Grimoire.CONTENT.firstExtracts);
+};
+
+Grimoire.noteFirstSilver = function (s) {
+    if (s.meta.silverLogged || s.resources.silver < 1) return;
+    s.meta.silverLogged = true;
+    Grimoire.log(s, Grimoire.CONTENT.firstSilver);
+};
+
+Grimoire.noteFirstFolio = function (s) {
+    if (s.meta.folioLogged || s.resources.folios < 1) return;
+    s.meta.folioLogged = true;
+    Grimoire.log(s, Grimoire.CONTENT.firstFolio);
 };
 
 Grimoire.addInsight = function (s, amount) {

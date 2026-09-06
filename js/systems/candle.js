@@ -2,7 +2,7 @@ var Grimoire = window.Grimoire || (window.Grimoire = {});
 
 Grimoire.candle = {
     BASE_DECAY: 0.35,
-    BASE_DRIP: 0.15,
+    BASE_DRIP: 0.12,
     OIL_CAP: 240,
     TALLOW_CAP: 200,
     TRIM_GAIN: 60,
@@ -48,6 +48,7 @@ Grimoire.candle = {
         var rate = this.BASE_DECAY * this.seasonMul(s) * this.prismMul(s) *
             s.meta.oilDecayMul * this.wardMul(s);
         if (rate < 0.15 && (s.generators.assignments.ward || 0) > 0) rate = 0.15;
+        if (Grimoire.estate) rate *= Grimoire.estate.buffMul(s, 'oil');
         return rate;
     },
 
@@ -113,6 +114,7 @@ Grimoire.candle = {
         s.resources.oil -= decay * dt;
         s.resources.tallow += drip * dt;
         Grimoire.clampResource(s, 'tallow', this.tallowCap(s));
+        Grimoire.noteFirstTallow(s);
         if (s.resources.oil <= 0) {
             s.resources.oil = 0;
             this.extinguish(s);
@@ -204,6 +206,7 @@ Grimoire.candle = {
         if (s.resources.tallow < 5) return false;
         s.resources.tallow -= 5;
         s.resources.ink += 1;
+        Grimoire.noteFirstInk(s);
         Grimoire.mark('resources', 'buttons', 'projects');
         return true;
     },

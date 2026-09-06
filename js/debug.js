@@ -5,8 +5,8 @@ Grimoire.DEBUG = true;
 Grimoire.debug = {
     freezeOil: false,
     panel: null,
-    fab: null,
-    hidden: false,
+    openBtn: null,
+    hidden: true,
     titleTaps: 0,
     titleTapTimer: 0,
 
@@ -15,8 +15,10 @@ Grimoire.debug = {
         document.documentElement.classList.add('debug-build');
         var wrap = document.createElement('div');
         wrap.id = 'debug-panel';
+        wrap.className = 'debug-hidden';
         wrap.setAttribute('role', 'region');
         wrap.setAttribute('aria-label', 'Debug panel');
+        wrap.setAttribute('aria-hidden', 'true');
         wrap.innerHTML =
             '<div class="debug-head"><strong>debug</strong> <span>strip js/debug.js to ship</span>' +
             '<button type="button" id="debug-hide">hide</button></div>' +
@@ -39,6 +41,7 @@ Grimoire.debug = {
             '<button type="button" data-dbg="study">Jump Study</button>' +
             '<button type="button" data-dbg="sentence">+1 Sentence</button>' +
             '<button type="button" data-dbg="shutters">Shutters</button>' +
+            '<button type="button" data-dbg="manor">Jump Manor</button>' +
             '</div>' +
             '<div class="debug-row">' +
             '<button type="button" data-dbg="minute">+1 min</button>' +
@@ -46,25 +49,14 @@ Grimoire.debug = {
             '<button type="button" data-dbg="settings">Open settings</button>' +
             '<button type="button" data-dbg="reset">Reset run</button>' +
             '</div>' +
-            '<p class="debug-foot">Tap dbg (top left), or F2 / Ctrl+Shift+D. Five taps on the title also works.</p>';
+            '<p class="debug-foot">Open from … → Debug. F2 / Ctrl+Shift+D, or five taps on the title.</p>';
         document.body.appendChild(wrap);
-        var fab = document.createElement('button');
-        fab.type = 'button';
-        fab.id = 'debug-fab';
-        fab.textContent = 'dbg';
-        fab.setAttribute('aria-label', 'Toggle debug panel');
-        document.body.appendChild(fab);
         this.panel = wrap;
-        this.fab = fab;
-        this.hidden = false;
+        this.hidden = true;
         this.injectCss();
         this.home();
-        this.syncFab();
+        this.injectSettingsButton();
         var self = this;
-        fab.addEventListener('click', function (e) {
-            e.preventDefault();
-            self.toggle();
-        });
         wrap.addEventListener('click', function (e) {
             var btn = e.target.closest('[data-dbg]');
             if (btn) self.run(btn.getAttribute('data-dbg'));
@@ -85,6 +77,27 @@ Grimoire.debug = {
         }, true);
     },
 
+    injectSettingsButton: function () {
+        var modal = document.getElementById('settings-modal');
+        if (!modal || this.openBtn) return;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.id = 'debug-open';
+        btn.textContent = 'Debug';
+        var title = document.getElementById('settings-title');
+        if (title && title.parentNode === modal) {
+            modal.insertBefore(btn, title.nextSibling);
+        } else {
+            modal.insertBefore(btn, modal.firstChild);
+        }
+        this.openBtn = btn;
+        var self = this;
+        btn.addEventListener('click', function () {
+            if (Grimoire.view && Grimoire.view.closeSettings) Grimoire.view.closeSettings();
+            self.show();
+        });
+    },
+
     onTitleTap: function () {
         var self = this;
         this.titleTaps += 1;
@@ -95,12 +108,6 @@ Grimoire.debug = {
             return;
         }
         this.titleTapTimer = setTimeout(function () { self.titleTaps = 0; }, 900);
-    },
-
-    syncFab: function () {
-        if (!this.fab) return;
-        this.fab.setAttribute('aria-expanded', this.hidden ? 'false' : 'true');
-        this.fab.classList.toggle('is-open', !this.hidden);
     },
 
     isToggleKey: function (e) {
@@ -131,7 +138,6 @@ Grimoire.debug = {
         this.panel.classList.add('debug-hidden');
         this.panel.setAttribute('aria-hidden', 'true');
         this.home();
-        this.syncFab();
     },
 
     show: function () {
@@ -140,7 +146,6 @@ Grimoire.debug = {
         this.panel.classList.remove('debug-hidden');
         this.panel.removeAttribute('aria-hidden');
         this.home();
-        this.syncFab();
     },
 
     toggle: function () {
@@ -153,10 +158,7 @@ Grimoire.debug = {
         var css = document.createElement('style');
         css.id = 'debug-css';
         css.textContent =
-            '#debug-fab{position:fixed;top:max(8px,env(safe-area-inset-top,0px));left:8px;z-index:210;' +
-            'min-width:44px;min-height:44px;margin:0;padding:6px 10px;border:1px solid #f5a623;background:#120e18;' +
-            'color:#f5a623;font:12px/1 "Courier New",monospace;box-shadow:0 4px 12px rgba(0,0,0,.5)}' +
-            '#debug-fab.is-open{background:#2a1c08}' +
+            '#debug-open{display:block;width:100%;margin:0 0 10px}' +
             '#debug-panel{position:fixed;right:8px;bottom:8px;z-index:200;width:min(360px,calc(100vw - 16px));' +
             'background:#120e18;border:1px solid #f5a623;color:#d4cece;font:12px/1.3 "Courier New",monospace;' +
             'padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);max-height:calc(100dvh - 120px);overflow:auto}' +
@@ -235,6 +237,9 @@ Grimoire.debug = {
             case 'shutters':
                 this.jumpShutters(s);
                 break;
+            case 'manor':
+                this.jumpManor(s);
+                break;
             case 'minute':
                 s.meta.playMs += 60000;
                 Grimoire.mark('layout', 'settings');
@@ -266,7 +271,7 @@ Grimoire.debug = {
             s.resources.passages = Math.max(1, s.resources.passages);
             Grimoire.addUnlock(s, 'catalog_page');
         }
-        s.page.pagesFinished = Math.max(12, s.page.pagesFinished);
+        s.page.pagesFinished = Math.max(Grimoire.pages.pagesToReachSentence(3), s.page.pagesFinished);
         s.meta.sentencesCompleted = Math.max(3, s.meta.sentencesCompleted);
         s.resources.ink = Math.max(20, s.resources.ink);
         s.resources.passages = Math.max(4, s.resources.passages);
@@ -278,7 +283,7 @@ Grimoire.debug = {
 
     addSentence: function (s) {
         if (s.meta.sentencesCompleted >= Grimoire.CONTENT.sentences.length) return;
-        s.page.pagesFinished = Math.max(s.page.pagesFinished, (s.meta.sentencesCompleted + 1) * 4);
+        s.page.pagesFinished = Math.max(s.page.pagesFinished, Grimoire.pages.pagesToReachSentence(s.meta.sentencesCompleted + 1));
         var text = Grimoire.CONTENT.sentences[s.meta.sentencesCompleted];
         s.meta.sentencesCompleted += 1;
         Grimoire.log(s, text, { highlight: true, typewriter: true });
@@ -295,6 +300,26 @@ Grimoire.debug = {
         if (!s.meta.shuttersOpen) {
             Grimoire.projects.apply(s, Grimoire.projects.byId('open_shutters'));
         }
+        Grimoire.markAll();
+    },
+
+    jumpManor: function (s) {
+        this.jumpShutters(s);
+        s.resources.tallow = Math.max(24, s.resources.tallow);
+        s.resources.ink = Math.max(16, s.resources.ink);
+        if (!Grimoire.hasUnlock(s, 'light_cellars')) {
+            Grimoire.addUnlock(s, 'light_cellars');
+            if (Grimoire.estate) Grimoire.estate.onLit(s, 'cellars');
+        }
+        if (Grimoire.estate) Grimoire.estate.ensure(s);
+        s.meta.estateRoom = 'hall';
+        s.meta.dispatchedQuill = null;
+        s.meta.estateSeen.cellars = true;
+        s.meta.estateSeen.hall = true;
+        s.meta.estateSeen.gate = true;
+        s.meta.activeTab = 'estate';
+        Grimoire.jobs.syncNewQuills(s);
+        Grimoire.log(s, 'debug: the cellars are lit. the rest of the house is not.', { highlight: true });
         Grimoire.markAll();
     }
 };

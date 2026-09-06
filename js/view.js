@@ -12,6 +12,8 @@ Grimoire.view = {
     flameFrame: 0,
     flameColor: 0,
     flameAcc: 0,
+    asciiFrame: 0,
+    asciiAcc: 0,
     reducedMotion: false,
     LOG_KEEP: 7,
     hintAnchor: null,
@@ -71,7 +73,14 @@ Grimoire.view = {
             vignette: $('vignette'),
             doubt: $('btn-doubt'),
             codex: $('codex-list'),
-            estateLines: $('estate-lines'),
+            estateMap: $('estate-map'),
+            estateInterior: $('estate-interior'),
+            estateLead: $('estate-lead'),
+            estateProjects: $('estate-projects'),
+            houseQuillStudy: $('house-quill-study'),
+            houseQuillEstate: $('house-quill-estate'),
+            studyStage: $('study-stage'),
+            studyArt: $('study-art'),
             bindingNote: $('binding-note'),
             hintCard: $('hint-card'),
             bootVeil: $('boot-veil'),
@@ -81,6 +90,7 @@ Grimoire.view = {
             btnTrimDark: $('btn-trim-dark'),
             btnSitDark: $('btn-sit-dark')
         };
+        this.settingsFocusBefore = null;
         this.buildRuneSlots();
         this.bindEvents();
         this.bindHints();
@@ -169,16 +179,20 @@ Grimoire.view = {
         this.els.chkMotion.addEventListener('change', function () {
             s().settings.reduceMotion = self.els.chkMotion.checked;
             self.syncMotionPref();
+            Grimoire.saveToStorage(s());
         });
         this.els.chkBleed.addEventListener('change', function () {
             s().settings.disableBleedFx = self.els.chkBleed.checked;
+            Grimoire.saveToStorage(s());
         });
         this.els.chkFlicker.addEventListener('change', function () {
             s().settings.disableFlicker = self.els.chkFlicker.checked;
+            Grimoire.saveToStorage(s());
         });
         this.els.chkExact.addEventListener('change', function () {
             s().settings.showExact = self.els.chkExact.checked;
             Grimoire.mark('projects');
+            Grimoire.saveToStorage(s());
         });
         this.els.btnExport.addEventListener('click', function () {
             self.els.exportBox.value = Grimoire.exportPayload(s());
@@ -189,6 +203,7 @@ Grimoire.view = {
                 var next = Grimoire.importSave(self.els.importBox.value);
                 Grimoire.state = next;
                 Grimoire.saveToStorage(next);
+                self.hydrateLog(next);
                 Grimoire.markAll();
                 Grimoire.log(next, 'the copy takes. the desk is as it was.');
                 self.closeSettings();
@@ -225,6 +240,39 @@ Grimoire.view = {
         this.els.projectListStudy.addEventListener('click', function (e) {
             self.onProjectClick(e);
         });
+        if (this.els.estateProjects) {
+            this.els.estateProjects.addEventListener('click', function (e) {
+                self.onProjectClick(e);
+            });
+        }
+        if (this.els.estateMap) {
+            this.els.estateMap.addEventListener('click', function (e) {
+                var btn = e.target.closest('[data-room]');
+                if (!btn || btn.tagName !== 'BUTTON') return;
+                Grimoire.estate.walk(s(), btn.getAttribute('data-room'));
+            });
+        }
+        var onHouseQuill = function (e) {
+            var btn = e.target.closest('button');
+            if (!btn) return;
+            var send = btn.getAttribute('data-send');
+            if (send) Grimoire.estate.dispatch(s(), send);
+            if (btn.getAttribute('data-recall') === '1') Grimoire.estate.recall(s());
+        };
+        if (this.els.houseQuillStudy) this.els.houseQuillStudy.addEventListener('click', onHouseQuill);
+        if (this.els.houseQuillEstate) this.els.houseQuillEstate.addEventListener('click', onHouseQuill);
+        if (this.els.estateInterior) {
+            this.els.estateInterior.addEventListener('click', function (e) {
+                var btn = e.target.closest('button');
+                if (!btn) return;
+                var start = btn.getAttribute('data-start');
+                if (start) Grimoire.estate.startBatch(s(), start);
+                var send = btn.getAttribute('data-send');
+                if (send) Grimoire.estate.dispatch(s(), send);
+                if (btn.getAttribute('data-recall') === '1') Grimoire.estate.recall(s());
+                if (btn.getAttribute('data-take-find') === '1') Grimoire.estate.takeFind(s());
+            });
+        }
         this.els.jobRows.addEventListener('click', function (e) {
             var btn = e.target.closest('button');
             if (!btn) return;
@@ -244,6 +292,15 @@ Grimoire.view = {
         });
 
         document.addEventListener('keydown', function (e) {
+            var modalOpen = self.els.settingsModal && !self.els.settingsModal.classList.contains('hidden');
+            if (modalOpen && e.key === 'Tab') {
+                self.trapSettingsTab(e);
+                return;
+            }
+            if (e.key === 'Escape') {
+                self.closeSettings();
+                return;
+            }
             var tag = (e.target && e.target.tagName) || '';
             if (tag === 'INPUT' || tag === 'TEXTAREA') return;
             self.skipTypewriter();
@@ -255,11 +312,29 @@ Grimoire.view = {
                 }
             }
             if (e.key === 'w' || e.key === 'W') {
-                if (!self.els.btnTrim.classList.contains('hidden')) {
-                    Grimoire.candle.trim(s());
+                var st = s();
+                if (!st.meta.deskRevealed) return;
+                var drowned = !st.meta.candleLit || st.resources.oil <= 0;
+                if (drowned) {
+                    if (self.els.btnTrimDark && !self.els.btnTrimDark.classList.contains('hidden') && !self.els.btnTrimDark.disabled) {
+                        Grimoire.candle.trim(st);
+                    }
+                } else if (!self.els.btnTrim.classList.contains('hidden')) {
+                    Grimoire.candle.trim(st);
                 }
             }
-            if (e.key === 'Escape') self.closeSettings();
+            var estateState = s();
+            if (!modalOpen && estateState && estateState.meta.activeTab === 'estate' && estateState.meta.shuttersOpen) {
+                var dir = null;
+                if (e.key === 'ArrowUp') dir = 'n';
+                if (e.key === 'ArrowDown') dir = 's';
+                if (e.key === 'ArrowLeft') dir = 'w';
+                if (e.key === 'ArrowRight') dir = 'e';
+                if (dir) {
+                    e.preventDefault();
+                    Grimoire.estate.walkDir(estateState, dir);
+                }
+            }
         });
     },
 
@@ -280,11 +355,19 @@ Grimoire.view = {
     switchTab: function (tab) {
         var s = Grimoire.state;
         s.meta.activeTab = tab;
-        Grimoire.mark('tabs', 'layout', 'projects', 'jobs');
+        Grimoire.mark('tabs', 'layout', 'projects', 'jobs', 'estate', 'study');
+        if (tab === 'estate' && s.meta.shuttersOpen) {
+            if (!s.meta.estateRoom) s.meta.estateRoom = 'hall';
+            if (Grimoire.estate) Grimoire.estate.ensure(s);
+            if (!s.meta.estateVisited) {
+                s.meta.estateVisited = true;
+                Grimoire.log(s, Grimoire.CONTENT.estateVisit, { highlight: true, typewriter: true });
+            }
+        }
         var focusMap = {
             desk: this.els.btnDecipher,
             study: this.els.jobRows.querySelector('button'),
-            estate: this.els.estateLines
+            estate: this.els.estateMap
         };
         var el = focusMap[tab];
         if (el && typeof el.focus === 'function') el.focus();
@@ -302,8 +385,8 @@ Grimoire.view = {
 
     openSettings: function () {
         var s = Grimoire.state;
-        s.meta.settingsUnlocked = true;
         this.hideHint();
+        this.settingsFocusBefore = document.activeElement;
         this.els.chkMotion.checked = s.settings.reduceMotion;
         this.els.chkBleed.checked = s.settings.disableBleedFx;
         this.els.chkFlicker.checked = s.settings.disableFlicker;
@@ -326,6 +409,25 @@ Grimoire.view = {
         this.els.settingsModal.classList.add('hidden');
         this.els.settingsBackdrop.classList.add('hidden');
         this.hideHint();
+        var prev = this.settingsFocusBefore;
+        this.settingsFocusBefore = null;
+        if (prev && typeof prev.focus === 'function' && document.body.contains(prev)) prev.focus();
+    },
+
+    trapSettingsTab: function (e) {
+        var root = this.els.settingsModal;
+        if (!root) return;
+        var nodes = root.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled])');
+        if (!nodes.length) return;
+        var first = nodes[0];
+        var last = nodes[nodes.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
     },
 
     resolveHint: function (el) {
@@ -559,10 +661,12 @@ Grimoire.view = {
         if (d.log) this.drawLog(s);
         if (d.projects) this.drawProjects(s);
         if (d.jobs) this.drawJobs(s);
+        if (d.study || d.jobs || d.layout || d.candle) this.drawStudyArt(s);
+        if (d.estate || d.layout || d.jobs || d.resources || d.buttons || d.projects) this.drawEstate(s);
         if (d.codex) this.drawCodex(s);
         if (d.settings || d.layout) this.drawChrome(s);
         this.drawDoubt(s);
-        if (d.layout || d.page || d.candle) this.fitDesk();
+        if (d.layout) this.fitDesk();
         for (var k in d) d[k] = false;
     },
 
@@ -597,16 +701,6 @@ Grimoire.view = {
         else if (study) sub = Grimoire.CONTENT.subheadings.bolted;
         else if (Grimoire.hasUnlock(s, 'name_flame')) sub = Grimoire.CONTENT.subheadings.flame;
         this.els.subhead.textContent = sub;
-
-        if (shutters) {
-            var rooms = Grimoire.CONTENT.estateRooms;
-            var html = '';
-            for (var i = 0; i < rooms.length; i++) {
-                html += '<p>' + rooms[i] + ' — dark</p>';
-            }
-            html += '<p class="italic">the grounds do not end where the lantern does.</p>';
-            this.els.estateLines.innerHTML = html;
-        }
     },
 
     setTexts: function (sel, text) {
@@ -625,9 +719,18 @@ Grimoire.view = {
         this.setTexts('.js-res-tallow', Grimoire.economics.format(Math.floor(s.resources.tallow)));
         this.setTexts('.js-res-ink', Grimoire.economics.format(Math.floor(s.resources.ink)));
         this.setTexts('.js-res-passages', Grimoire.economics.format(Math.floor(s.resources.passages)));
-        this.setTexts('.js-res-quills', String(s.generators.quills));
+        var qtxt = String(s.generators.quills);
+        if (s.meta.dispatchedQuill && Grimoire.estate) {
+            qtxt += ' (1 in the ' + Grimoire.estate.roomName(s.meta.dispatchedQuill) + ')';
+        }
+        this.setTexts('.js-res-quills', qtxt);
         this.setTexts('.js-res-lexicons', Grimoire.economics.format(Math.floor(s.resources.lexicons)));
         this.setTexts('.js-res-matches', String(s.resources.matches));
+        this.setTexts('.js-res-chapter', Grimoire.translationPercent(s) + '%');
+        this.setTexts('.js-res-vellum', Grimoire.economics.format(Math.floor(s.resources.vellum || 0)));
+        this.setTexts('.js-res-folios', Grimoire.economics.format(Math.floor(s.resources.folios || 0)));
+        this.setTexts('.js-res-extracts', Grimoire.economics.format(Math.floor(s.resources.extracts || 0)));
+        this.setTexts('.js-res-silver', Grimoire.economics.format(Math.floor(s.resources.silver || 0)));
 
         var named = Grimoire.hasUnlock(s, 'name_flame');
         this.toggleRows('tallow', named);
@@ -636,6 +739,11 @@ Grimoire.view = {
         this.toggleRows('quills', s.generators.quills >= 1);
         this.toggleRows('lexicons', Grimoire.hasUnlock(s, 'collation'));
         this.toggleRows('matches', s.meta.darknessSeen);
+        this.toggleRows('chapter', Grimoire.hasUnlock(s, 'index'));
+        this.toggleRows('vellum', (s.resources.vellum || 0) > 0 || Grimoire.hasUnlock(s, 'light_cellars'));
+        this.toggleRows('folios', (s.resources.folios || 0) > 0 || Grimoire.hasUnlock(s, 'light_library'));
+        this.toggleRows('extracts', (s.resources.extracts || 0) > 0 || Grimoire.hasUnlock(s, 'light_glasshouse'));
+        this.toggleRows('silver', (s.resources.silver || 0) > 0 || Grimoire.hasUnlock(s, 'light_vault'));
         var wick = Grimoire.candle.wickVisible(s);
         this.els.candleMeter.classList.toggle('hidden', !wick);
         this.els.candleMeter.textContent = 'CANDLE: ' + Math.round(Grimoire.candle.oilPercent(s) * 100) + '%';
@@ -672,7 +780,7 @@ Grimoire.view = {
         this.els.btnStrike.textContent = 'Strike Match (3 Insight)';
         var wick = Grimoire.candle.wickVisible(s);
         var snuffs = s.meta.snuffs || 0;
-        var showTrim = wick && snuffs >= 2;
+        var showTrim = wick;
         var canTrim = showTrim && (s.meta.trimsDone < 2 || s.resources.tallow >= Grimoire.candle.TRIM_COST);
         this.els.btnTrimDark.classList.toggle('hidden', !showTrim);
         this.els.btnTrimDark.disabled = !canTrim || sitting;
@@ -690,6 +798,11 @@ Grimoire.view = {
         var study = Grimoire.projects.revealedList(s, 'study');
         var shownS = this.els.projectListStudy.querySelectorAll('.project-row:not(.dim)').length;
         if (study.length !== shownS) this.fillProjects(this.els.projectListStudy, s, 'study');
+        if (this.els.estateProjects) {
+            var est = Grimoire.projects.revealedList(s, 'estate');
+            var shownE = this.els.estateProjects.querySelectorAll('.project-row:not(.dim)').length;
+            if (est.length !== shownE) this.fillProjects(this.els.estateProjects, s, 'estate');
+        }
 
         var buttons = document.querySelectorAll('button[data-project]');
         for (var i = 0; i < buttons.length; i++) {
@@ -702,6 +815,7 @@ Grimoire.view = {
             if (btn.disabled !== !affordable) btn.disabled = !affordable;
             var label = Grimoire.projects.buttonLabel(s, p, false);
             if (btn.textContent !== label) btn.textContent = label;
+            if (row) row.classList.toggle('has-charges', p.id === 'press_once' && (s.meta.pressOnceLeft || 0) > 0);
             if (affordable && !s.meta.lastAffordable[p.id]) {
                 s.meta.lastAffordable[p.id] = true;
                 if (!this.reducedMotion && row) row.classList.add('pulse-affordable');
@@ -820,12 +934,13 @@ Grimoire.view = {
     drawProjects: function (s) {
         this.fillProjects(this.els.projectList, s, 'desk');
         this.fillProjects(this.els.projectListStudy, s, 'study');
+        if (this.els.estateProjects) this.fillProjects(this.els.estateProjects, s, 'estate');
     },
 
     fillProjects: function (root, s, tab) {
         var revealed = Grimoire.projects.revealedList(s, tab);
         var extra = s.meta.extraReveals || 0;
-        var cap = (tab === 'desk' ? 4 : 6) + extra;
+        var cap = (tab === 'desk' ? 4 : tab === 'estate' ? 8 : 6) + extra;
         var show = revealed.slice(0, cap);
         var tease = Grimoire.projects.tease(s, tab);
         var sig = show.map(function (p) {
@@ -855,6 +970,7 @@ Grimoire.view = {
         var cls = 'project-row';
         if (dim) cls += ' dim';
         if (pulse && !this.reducedMotion) cls += ' pulse-affordable';
+        if (!dim && p.id === 'press_once' && (s.meta.pressOnceLeft || 0) > 0) cls += ' has-charges';
         var disabled = dim || !affordable ? ' disabled' : '';
         var hint = ' data-hint="project" data-project="' + p.id + '"';
         var fx = '';
@@ -866,12 +982,106 @@ Grimoire.view = {
             Grimoire.projects.buttonLabel(s, p, dim) + '</button>' + fx + '</div>';
     },
 
+    padAscii: function (text, n) {
+        var t = String(text);
+        if (n <= 0) return '';
+        if (t.length >= n) return t.slice(0, n);
+        return t + '                                        '.slice(0, n - t.length);
+    },
+
+    stepAscii: function (s) {
+        if (this.reducedMotion) return;
+        if (!s.meta.deskRevealed || !s.meta.candleLit || s.resources.oil <= 0) return;
+        this.asciiAcc += 1;
+        if (this.asciiAcc < 2) return;
+        this.asciiAcc = 0;
+        this.asciiFrame = (this.asciiFrame + 1) % 4;
+        var tab = s.meta.activeTab || 'desk';
+        if (tab === 'study' && Grimoire.hasUnlock(s, 'bolt_and_key')) Grimoire.dirty.study = true;
+        if (tab === 'estate' && s.meta.shuttersOpen) Grimoire.dirty.estate = true;
+    },
+
+    drawStudyArt: function (s) {
+        var stage = this.els.studyStage;
+        var art = this.els.studyArt;
+        if (!stage || !art) return;
+        var study = Grimoire.hasUnlock(s, 'bolt_and_key');
+        stage.classList.toggle('hidden', !study);
+        if (!study) return;
+        var live = !!(s.meta.deskRevealed && s.meta.candleLit && s.resources.oil > 0);
+        stage.classList.toggle('is-live', live);
+        stage.classList.toggle('is-dark', !live);
+        var html = this.studyArtHtml(s);
+        if (art.getAttribute('data-sig') === html) return;
+        art.setAttribute('data-sig', html);
+        art.innerHTML = html;
+    },
+
+    studyArtHtml: function (s) {
+        var f = this.asciiFrame % 4;
+        var a = s.generators.assignments || {};
+        var t = a.transcribe || 0;
+        var c = a.copy || 0;
+        var att = a.attend || 0;
+        var w = a.ward || 0;
+        var live = !!(s.meta.deskRevealed && s.meta.candleLit && s.resources.oil > 0);
+        var motion = live && !this.reducedMotion;
+        var n = Grimoire.jobs ? Math.min(4, Grimoire.jobs.studyQuills(s)) : 0;
+        var lamp = '       ';
+        if (live && w) lamp = motion ? ['  *\'   ', '   *\'  ', '  \' *  ', '  * .  '][f] : '   *   ';
+        else if (live) lamp = '   .   ';
+        var board = ' |-| ';
+        if (att && live) board = motion ? [' |#| ', ' |=| ', ' |:| ', ' |*| '][f] : ' |#| ';
+        var perch = '';
+        var perchVis = 10;
+        var i;
+        for (i = 0; i < 4; i++) {
+            perch += i < n ? '<span class="study-q">q</span>' : '.';
+            if (i < 3) perch += '  ';
+        }
+        if (s.meta.dispatchedQuill) {
+            perch += '     <span class="study-away">_</span>';
+            perchVis = 16;
+        }
+        var scratch = '····';
+        if (t && live) scratch = motion ? ['~~~~', '~ ~~', '~~ ~', ' ~~~'][f] : '~~~~';
+        var ink = '( ) ';
+        if (c && live) ink = motion ? ["(o)'", '(o).', '(o) ', '(o),'][f] : '(o) ';
+        var lampCls = 'study-lamp' + (w && live ? ' is-on' : '');
+        var boardCls = 'study-board' + (att && live ? ' is-on' : '');
+        var scratchCls = 'study-scratch' + (t && live ? ' is-on' : '');
+        var inkCls = 'study-ink' + (c && live ? ' is-on' : '');
+        return [
+            '     .=======.                 .-----.',
+            '     |<span class="' + lampCls + '">' + lamp + '</span>|                 |<span class="' + boardCls + '">' + board + '</span>|',
+            "     '======='                 '-----'",
+            '.------------------------------------.',
+            '| ' + perch + this.padAscii('', 35 - perchVis) + '|',
+            '|  <span class="' + scratchCls + '">' + scratch + '</span>' + this.padAscii('', 24) + '<span class="' + inkCls + '">' + ink + '</span>  |',
+            "'------------------------------------'"
+        ].join('\n');
+    },
+
     drawJobs: function (s) {
         var study = Grimoire.hasUnlock(s, 'bolt_and_key');
         this.els.jobPanel.classList.toggle('hidden', !study);
-        if (!study) return;
+        if (!study) {
+            this.drawHouseQuill(s, this.els.houseQuillStudy);
+            return;
+        }
         var jobs = ['transcribe', 'copy', 'attend', 'ward'];
         var a = s.generators.assignments;
+        var r = Grimoire.jobs.rates(s);
+        var sig = jobs.map(function (id) {
+            var locked = id === 'attend' && !Grimoire.jobs.canAttend(s);
+            return id + ':' + (a[id] || 0) + (locked ? ':L' : '');
+        }).join(',') + '|q' + s.generators.quills + '|d' + (s.meta.dispatchedQuill || '');
+        if (this.els.jobRows.getAttribute('data-sig') === sig) {
+            this.refreshJobRates(s, r);
+            this.drawHouseQuill(s, this.els.houseQuillStudy);
+            return;
+        }
+        this.els.jobRows.setAttribute('data-sig', sig);
         var html = '';
         for (var i = 0; i < jobs.length; i++) {
             var id = jobs[i];
@@ -882,10 +1092,238 @@ Grimoire.view = {
             html += '<button type="button" data-job="' + id + '" data-delta="-"' + (locked || !a[id] ? ' disabled' : '') + '>−</button>';
             html += '<span class="job-count">' + (a[id] || 0) + '</span>';
             html += '<button type="button" data-job="' + id + '" data-delta="+"' + (locked ? ' disabled' : '') + '>+</button>';
+            html += '<span class="job-rate" data-job-rate="' + id + '">' + (locked ? '' : this.jobRateText(id, r)) + '</span>';
             html += '<span class="job-hint">' + (locked ? 'not yet.' : info.hint) + '</span>';
             html += '</div>';
         }
         this.els.jobRows.innerHTML = html;
+        this.drawHouseQuill(s, this.els.houseQuillStudy);
+    },
+
+    refreshJobRates: function (s, r) {
+        var nodes = this.els.jobRows.querySelectorAll('[data-job-rate]');
+        for (var i = 0; i < nodes.length; i++) {
+            var id = nodes[i].getAttribute('data-job-rate');
+            var locked = id === 'attend' && !Grimoire.jobs.canAttend(s);
+            var next = locked ? '' : this.jobRateText(id, r);
+            if (nodes[i].textContent !== next) nodes[i].textContent = next;
+        }
+    },
+
+    jobRateText: function (id, r) {
+        var fmt = Grimoire.projects.rateStr;
+        if (id === 'transcribe') return r.insight ? ('+' + fmt(r.insight, 1) + ' Insight/s') : '';
+        if (id === 'copy') {
+            if (!r.copyInk) return '';
+            return '+' + fmt(r.copyInk, 2) + ' Ink/s · −' + fmt(r.copyDrain, 1) + ' Insight/s';
+        }
+        if (id === 'attend') return r.attendRunes ? (fmt(r.attendRunes, 2) + ' runes/s') : '';
+        if (id === 'ward') {
+            var w = Grimoire.state.generators.assignments.ward || 0;
+            return w ? ('oil ×' + fmt(Math.pow(0.85, w), 2)) : '';
+        }
+        return '';
+    },
+
+    drawEstate: function (s) {
+        if (!this.els.estateMap || !s.meta.shuttersOpen) return;
+        if (Grimoire.estate) Grimoire.estate.ensure(s);
+        if (this.els.estateLead) {
+            this.els.estateLead.textContent = s.meta.packetLeft
+                ? 'a packet went down the drive. nothing has come back up it.'
+                : 'the grounds have a shape. walk it. one room at a time.';
+        }
+        var mapSig = Grimoire.estate.mapSig(s);
+        if (this.els.estateMap.getAttribute('data-sig') !== mapSig) {
+            this.els.estateMap.setAttribute('data-sig', mapSig);
+            this.els.estateMap.innerHTML = Grimoire.estate.mapHtml(s);
+        }
+        this.patchEstateMeters(s);
+        this.drawEstateInterior(s);
+        this.drawHouseQuill(s, this.els.houseQuillEstate);
+    },
+
+    patchEstateMeters: function (s) {
+        var E = Grimoire.estate;
+        var nodes = this.els.estateMap.querySelectorAll('[data-room]');
+        for (var i = 0; i < nodes.length; i++) {
+            var el = nodes[i];
+            var id = el.getAttribute('data-room');
+            var p = E.workProgress(s, id);
+            var name = el.querySelector('.map-room-name');
+            var nextName = E.nameLine(s, id);
+            if (name && name.textContent !== nextName) name.textContent = nextName;
+            var flair = el.querySelector('.map-room-flair');
+            var nextFlair = E.flairLine(s, id);
+            if (flair && flair.textContent !== nextFlair) flair.textContent = nextFlair;
+            var fill = el.querySelector('.map-meter-fill');
+            var pct = p == null ? 0 : Math.max(0, Math.min(100, Math.round(p * 100)));
+            if (fill) {
+                var width = pct + '%';
+                if (fill.style.width !== width) fill.style.width = width;
+            }
+            var meter = el.querySelector('.map-meter');
+            if (meter) meter.classList.toggle('is-on', p != null);
+            var nextCls = E.cellClass(s, id);
+            if (el.className !== nextCls) el.className = nextCls;
+            var label = E.roomLabel(s, id);
+            if (el.getAttribute('aria-label') !== label) el.setAttribute('aria-label', label);
+        }
+    },
+
+    drawEstateInterior: function (s) {
+        var root = this.els.estateInterior;
+        if (!root) return;
+        var E = Grimoire.estate;
+        var room = E.current(s);
+        var info = Grimoire.CONTENT.estateRooms[room] || { name: room, flavor: '' };
+        var live = E.houseLive(s);
+        var b = s.meta.estateBatches[room];
+        var progress = 0;
+        var cooking = false;
+        var left = 0;
+        if (room === 'glasshouse' && E.isLit(s, 'glasshouse')) {
+            cooking = true;
+            progress = (s.meta.estateBatches.glasshouse && s.meta.estateBatches.glasshouse.progress) || 0;
+            left = E.secondsLeft(s, 'glasshouse');
+        } else if (b && b.active) {
+            cooking = true;
+            progress = b.progress || 0;
+            left = E.secondsLeft(s, room);
+        }
+        var pct = Math.max(0, Math.min(100, Math.floor(progress * 100)));
+        var findId = (s.meta.estateFind && s.meta.estateFind.id) || '';
+        var buffId = (s.meta.estateBuff && s.meta.estateBuff.id) || '';
+        var sig = [room, E.isLit(s, room) ? 'L' : 'd', live ? '1' : '0', cooking ? 'c' : '',
+            s.meta.dispatchedQuill || '', E.canStart(s, room) ? 's' : '',
+            E.canDispatch(s, room) ? 'q' : '', Grimoire.hasUnlock(s, 'mechanical_cataloger') ? 'k' : '',
+            findId, buffId, Math.ceil(E.buffLeft(s))].join('|');
+        if (root.getAttribute('data-sig') === sig) {
+            var fill = root.querySelector('.estate-bar-fill');
+            var time = root.querySelector('.estate-bar-time');
+            var vignette = root.querySelector('.estate-vignette');
+            if (fill) fill.style.width = pct + '%';
+            if (time) {
+                if (!live && cooking) time.textContent = 'paused. the candle is out.';
+                else if (cooking && room === 'library' && !E.libraryCanProgress(s)) {
+                    time.textContent = 'waiting — stay, send a quill, or the Cataloger.';
+                } else if (cooking && left > 0) time.textContent = Math.ceil(left) + 's';
+                else if (cooking) time.textContent = 'working';
+            }
+            if (vignette) {
+                var nextArt = E.interiorArt(s, room);
+                if (vignette.textContent !== nextArt) vignette.textContent = nextArt;
+                vignette.classList.toggle('is-live', live);
+            }
+            var buffEl = root.querySelector('.estate-buff');
+            var buffLine = E.buffLine(s);
+            if (buffEl && buffLine) buffEl.textContent = buffLine;
+            return;
+        }
+        root.setAttribute('data-sig', sig);
+        var html = '<h3>' + info.name + '</h3>';
+        html += '<p class="italic muted">' + (info.flavor || '') + '</p>';
+        var art = E.interiorArt(s, room);
+        if (art) {
+            html += '<pre class="estate-vignette' + (live ? ' is-live' : '') + '" aria-hidden="true">' + art + '</pre>';
+        }
+        html += this.estateBuffHtml(s);
+        html += this.estateFindHtml(s, room);
+        if (!live) {
+            html += '<p class="muted">the house is dark. the work waits.</p>';
+        }
+        if (E.isWork(room)) {
+            if (!E.isLit(s, room)) {
+                html += '<p>unlit. Light waits on the list below.</p>';
+            } else if (room === 'glasshouse') {
+                html += '<p>it drips while you are away. standing here, or a quill, makes it less slow.</p>';
+                html += this.estateBarHtml(pct, live, left, 'extract');
+            } else {
+                var hintKey = room === 'cellars' ? 'renderHide' : room === 'library' ? 'collateFolio' : 'chargeBath';
+                html += '<p class="muted">' + (Grimoire.CONTENT.hints[hintKey] || '') + '</p>';
+                if (room === 'library' && !E.libraryCanProgress(s) && cooking) {
+                    html += '<p class="muted">the collation waits. stay, send a quill, or buy the Cataloger.</p>';
+                }
+                var can = E.canStart(s, room);
+                html += '<button type="button" data-start="' + room + '" data-hint="' + hintKey + '"' +
+                    (can ? '' : ' disabled') + '>' + E.startLabel(s, room) + '</button>';
+                if (cooking) html += this.estateBarHtml(pct, live, left, room);
+            }
+        } else if (room === 'hall') {
+            html += '<p class="muted">click a door beside you, or use the arrows.</p>';
+        } else if (room === 'gate') {
+            if (s.meta.packetLeft) {
+                html += '<p>the drive is empty. the gravel is not disturbed.</p>';
+            } else {
+                html += '<p class="muted">a packet could be left here. obituaries are not copied on the estate.</p>';
+            }
+        }
+        root.innerHTML = html;
+    },
+
+    estateFindHtml: function (s, room) {
+        var E = Grimoire.estate;
+        if (!E.hasFind(s, room)) return '';
+        var def = E.findDef(s.meta.estateFind.id);
+        if (!def) return '';
+        return '<p class="estate-find-line italic">' + def.seen + '</p>' +
+            '<button type="button" data-take-find="1" data-hint="estateFind">take the ' + def.name + '</button>';
+    },
+
+    estateBuffHtml: function (s) {
+        var line = Grimoire.estate.buffLine(s);
+        if (!line) return '';
+        return '<p class="estate-buff">' + line + '</p>';
+    },
+
+    estateBarHtml: function (pct, live, left, kind) {
+        var time = !live ? 'paused. the candle is out.' : (left > 0 ? Math.ceil(left) + 's' : 'working');
+        var label = kind === 'extract' ? 'drip' : 'batch';
+        return '<div class="estate-bar" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" aria-label="' + label + '">' +
+            '<div class="estate-bar-fill" style="width:' + pct + '%"></div></div>' +
+            '<p class="estate-bar-time muted">' + time + '</p>';
+    },
+
+    drawHouseQuill: function (s, root) {
+        if (!root) return;
+        if (!s.meta.shuttersOpen) {
+            root.classList.add('hidden');
+            root.innerHTML = '';
+            return;
+        }
+        root.classList.remove('hidden');
+        var E = Grimoire.estate;
+        var dispatched = s.meta.dispatchedQuill;
+        var sig = (dispatched || '') + '|' + E.current(s) + '|' + E.litCount(s) + '|' +
+            Grimoire.jobs.totalAssigned(s) + '|' + E.buffLine(s);
+        if (root.getAttribute('data-sig') === sig) return;
+        root.setAttribute('data-sig', sig);
+        var html = '<p class="italic muted">one feather may leave the study.</p>';
+        html += this.estateBuffHtml(s);
+        if (dispatched) {
+            html += '<button type="button" data-recall="1" data-hint="recallQuill">Recall the quill from the ' +
+                E.roomName(dispatched) + '</button>';
+        } else {
+            var work = E.WORK;
+            var any = false;
+            for (var i = 0; i < work.length; i++) {
+                var id = work[i];
+                if (!E.canDispatch(s, id)) continue;
+                any = true;
+                html += '<button type="button" data-send="' + id + '" data-hint="sendQuill">Send a quill to the ' +
+                    E.roomName(id) + '</button>';
+            }
+            if (!any) {
+                if ((s.generators.quills || 0) < 1) {
+                    html += '<p class="muted">no feathers to send.</p>';
+                } else if (E.litCount(s) < 1) {
+                    html += '<p class="muted">light a room first.</p>';
+                } else {
+                    html += '<p class="muted">every feather is already assigned. free one, or there is none to send.</p>';
+                }
+            }
+        }
+        root.innerHTML = html;
     },
 
     drawCodex: function (s) {
@@ -907,7 +1345,10 @@ Grimoire.view = {
     },
 
     drawChrome: function (s) {
-        var show = !!s.meta.deskRevealed;
+        if (s.meta.deskRevealed && !s.meta.settingsUnlocked && s.meta.playMs >= 90000) {
+            s.meta.settingsUnlocked = true;
+        }
+        var show = !!s.meta.settingsUnlocked;
         this.els.btnSettings.classList.toggle('hidden', !show);
         this.els.btnSettings.setAttribute('aria-hidden', show ? 'false' : 'true');
     },

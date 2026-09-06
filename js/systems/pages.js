@@ -12,6 +12,18 @@ Grimoire.RUNE_COORDS = [
 ];
 
 Grimoire.pages = {
+    // Sentences 1–3 take 5 pages (Study at 15). Later sentences stay 4 so Attend
+    // pacing for 6 and 12 does not stretch. See GAME-BIBLE.md §6 / §16.
+    pagesForSentence: function (n) {
+        return n <= 3 ? 5 : 4;
+    },
+
+    pagesToReachSentence: function (count) {
+        var t = 0;
+        for (var i = 1; i <= count; i++) t += this.pagesForSentence(i);
+        return t;
+    },
+
     generate: function (s) {
         var count = s.page.pagesFinished === 0 ? 24 : 48;
         s.page.runesPerPage = count;
@@ -107,6 +119,7 @@ Grimoire.pages = {
         s.page.runesFinishedLifetime += 1;
         rune.flashLeft = 0;
         Grimoire.mark('page');
+        if (Grimoire.hasUnlock(s, 'index')) Grimoire.mark('resources');
         if (this.pendingCount(s) === 0) {
             this.completePage(s);
         }
@@ -116,7 +129,7 @@ Grimoire.pages = {
         s.page.pagesFinished += 1;
         s.resources.passages += 1;
         Grimoire.mark('resources', 'projects', 'page');
-        var needed = (s.meta.sentencesCompleted + 1) * 4;
+        var needed = this.pagesToReachSentence(s.meta.sentencesCompleted + 1);
         if (s.page.pagesFinished >= needed && s.meta.sentencesCompleted < Grimoire.CONTENT.sentences.length) {
             var text = Grimoire.CONTENT.sentences[s.meta.sentencesCompleted];
             s.meta.sentencesCompleted += 1;

@@ -6,8 +6,9 @@ Grimoire.jobs = {
         var transcribe = a.transcribe || 0;
         var copy = a.copy || 0;
         var attend = a.attend || 0;
+        var tmul = (Grimoire.estate && Grimoire.estate.buffMul(s, 'transcribe')) || 1;
         return {
-            insight: transcribe * 0.5,
+            insight: transcribe * 0.5 * tmul,
             copyInk: copy * 0.08,
             copyDrain: copy * 0.4,
             attendRunes: attend * 0.08
@@ -19,8 +20,18 @@ Grimoire.jobs = {
         return (a.transcribe || 0) + (a.copy || 0) + (a.attend || 0) + (a.ward || 0);
     },
 
+    studyQuills: function (s) {
+        var q = s.generators.quills || 0;
+        if (s.meta && s.meta.dispatchedQuill) q -= 1;
+        if (q < 0) q = 0;
+        return q;
+    },
+
     syncNewQuills: function (s) {
-        var q = s.generators.quills;
+        if (s.meta && s.meta.dispatchedQuill && this.totalAssigned(s) > this.studyQuills(s)) {
+            if (Grimoire.estate && Grimoire.estate.recall) Grimoire.estate.recall(s, { silent: true });
+        }
+        var q = this.studyQuills(s);
         var assigned = this.totalAssigned(s);
         if (q > assigned) {
             s.generators.assignments.transcribe += (q - assigned);
@@ -47,6 +58,9 @@ Grimoire.jobs = {
     shift: function (s, job, delta) {
         if (!Grimoire.hasUnlock(s, 'bolt_and_key')) return;
         if (job === 'attend' && !this.canAttend(s)) return;
+        if (s.meta && s.meta.dispatchedQuill && this.totalAssigned(s) > this.studyQuills(s)) {
+            if (Grimoire.estate && Grimoire.estate.recall) Grimoire.estate.recall(s);
+        }
         var a = s.generators.assignments;
         if (delta > 0) {
             if ((a.transcribe || 0) <= 0) {
@@ -88,6 +102,7 @@ Grimoire.jobs = {
                 var frac = drain <= 0 ? 0 : used / drain;
                 s.resources.insight -= used;
                 s.resources.ink += r.copyInk * dt * frac;
+                Grimoire.noteFirstInk(s);
                 Grimoire.mark('resources');
             }
         }
@@ -106,30 +121,29 @@ Grimoire.jobs = {
         }
         var r = this.rates(s);
         var insight0 = s.resources.insight;
-        var net = r.insight - r.copyDrain;
-        var copyTime = seconds;
-        if (r.copyDrain > 0 && net < 0) {
-            copyTime = Math.min(seconds, insight0 / (r.copyDrain - r.insight));
-            if (copyTime < 0) copyTime = 0;
+        if (r.insight > 0) {
+            Grimoire.addInsight(s, r.insight * seconds);
         }
-        var insightGain = r.insight * seconds;
-        if (r.copyDrain > 0) {
-            var drained = r.copyDrain * copyTime;
-            insightGain -= drained;
+        var inkGain = 0;
+        if (r.copyInk > 0 && r.copyDrain > 0) {
+            var emptyT = seconds;
+            if (r.copyDrain > r.insight) {
+                emptyT = insight0 <= 0 ? 0 : Math.min(seconds, insight0 / (r.copyDrain - r.insight));
+            }
+            var remain = seconds - emptyT;
+            var throttle = r.insight / r.copyDrain;
+            inkGain = r.copyInk * emptyT + r.copyInk * throttle * remain;
+            var drained = r.copyDrain * emptyT + r.insight * remain;
+            s.resources.insight = Math.max(0, s.resources.insight - drained);
         }
-        if (insight0 + insightGain < 0) insightGain = -insight0;
-        Grimoire.addInsight(s, Math.max(0, insightGain));
-        if (insightGain < 0) {
-            s.resources.insight = Math.max(0, s.resources.insight + insightGain);
-        }
-        var inkGain = r.copyInk * copyTime;
         s.resources.ink += inkGain;
+        Grimoire.noteFirstInk(s);
         var runeGain = 0;
         if (r.attendRunes > 0 && this.canAttend(s)) {
             runeGain = r.attendRunes * seconds;
             Grimoire.pages.advanceSilent(s, runeGain);
         }
         Grimoire.mark('resources');
-        return { insight: Math.max(0, insightGain), ink: inkGain, runes: runeGain };
+        return { insight: Math.max(0, r.insight * seconds), ink: inkGain, runes: runeGain };
     }
 };

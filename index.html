@@ -34,7 +34,7 @@
                 <button type="button" id="btn-settings" class="hidden" aria-label="Settings" data-hint="settings">…</button>
             </div>
             <h1>Grimoire</h1>
-            <p id="subheading" class="italic">a heavy book, brass-bound, dusty.</p>
+            <p id="subheading" class="italic">a heavy book. brass at the corners. dust on the top edge.</p>
         </header>
 
         <div id="layout">
@@ -67,6 +67,26 @@
                     <div class="resource hidden" data-row="matches" data-hint="matches">
                         <span class="label">Matches:</span>
                         <span class="value js-res-matches">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="vellum" data-hint="vellum">
+                        <span class="label">Vellum:</span>
+                        <span class="value js-res-vellum">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="folios" data-hint="folios">
+                        <span class="label">Folios:</span>
+                        <span class="value js-res-folios">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="extracts" data-hint="extracts">
+                        <span class="label">Extracts:</span>
+                        <span class="value js-res-extracts">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="silver" data-hint="silver">
+                        <span class="label">Silver:</span>
+                        <span class="value js-res-silver">0</span>
+                    </div>
+                    <div class="resource hidden" data-row="chapter" data-hint="chapter">
+                        <span class="label">Chapter:</span>
+                        <span class="value js-res-chapter">0%</span>
                     </div>
                 </div>
             </aside>
@@ -106,37 +126,6 @@
                         </div>
                     </div>
 
-                    <div id="early-resources" class="panel">
-                        <div class="resource" data-row="insight" data-hint="insight">
-                            <span class="label">Insight:</span>
-                            <span class="value js-res-insight">0</span>
-                        </div>
-                        <div class="resource hidden" data-row="tallow" data-hint="tallow">
-                            <span class="label">Tallow:</span>
-                            <span class="value js-res-tallow">0</span>
-                        </div>
-                        <div class="resource hidden" data-row="ink" data-hint="ink">
-                            <span class="label">Ink:</span>
-                            <span class="value js-res-ink">0</span>
-                        </div>
-                        <div class="resource hidden" data-row="passages" data-hint="passages">
-                            <span class="label">Passages:</span>
-                            <span class="value js-res-passages">0</span>
-                        </div>
-                        <div class="resource hidden" data-row="quills" data-hint="quills">
-                            <span class="label">Quills:</span>
-                            <span class="value js-res-quills">0</span>
-                        </div>
-                        <div class="resource hidden" data-row="lexicons" data-hint="lexicons">
-                            <span class="label">Lexicons:</span>
-                            <span class="value js-res-lexicons">0</span>
-                        </div>
-                        <div class="resource hidden" data-row="matches" data-hint="matches">
-                            <span class="label">Matches:</span>
-                            <span class="value js-res-matches">0</span>
-                        </div>
-                    </div>
-
                     <div id="action-buttons" class="panel">
                         <button type="button" id="btn-decipher" data-hint="decipher">Decipher Faded Glyph</button>
                         <button type="button" id="btn-trim" class="hidden" data-hint="trim">Trim Wick</button>
@@ -147,10 +136,14 @@
                 </section>
 
                 <section id="panel-study" class="hidden" role="tabpanel" aria-labelledby="tab-study">
+                    <div id="study-stage" class="ascii-stage panel hidden" data-hint="studyArt">
+                        <pre id="study-art" aria-hidden="true"></pre>
+                    </div>
                     <div id="job-panel" class="panel hidden">
                         <h2>Assignments</h2>
-                        <p class="italic muted">each quill has one task. the sum is the feathers you bound.</p>
+                        <p class="italic muted">one task to a quill. the work is never more than the feathers you bound.</p>
                         <div id="job-rows"></div>
+                        <div id="house-quill-study" class="house-quill hidden"></div>
                         <button type="button" id="btn-lexicon" class="hidden" data-hint="lexicon">Bind Lexicon (5 Passages, 8 Ink)</button>
                     </div>
                     <div id="project-list-study" class="project-list"></div>
@@ -159,7 +152,11 @@
 
                 <section id="panel-estate" class="hidden panel" role="tabpanel" aria-labelledby="tab-estate">
                     <h2>Estate</h2>
-                    <div id="estate-lines" tabindex="-1"></div>
+                    <p id="estate-lead" class="italic muted">the grounds are dark. one room at a time.</p>
+                    <div id="estate-map" class="estate-map" tabindex="0" aria-label="Estate grounds" data-hint="estateMap"></div>
+                    <div id="estate-interior"></div>
+                    <div id="house-quill-estate" class="house-quill"></div>
+                    <div id="estate-projects" class="project-list"></div>
                 </section>
 
                 <section id="panel-binding" class="hidden panel" role="tabpanel" aria-labelledby="tab-binding">
@@ -212,6 +209,7 @@
     <script src="js/systems/candle.js"></script>
     <script src="js/systems/pages.js"></script>
     <script src="js/systems/jobs.js"></script>
+    <script src="js/systems/estate.js"></script>
     <script src="js/systems/projects.js"></script>
     <script src="js/systems/bleed.js"></script>
     <script src="js/view.js"></script>

@@ -46,6 +46,10 @@ Grimoire.engine = {
         this.acc += dt;
         this.saveAcc += dt;
         Grimoire.state.meta.playMs += dt;
+        if (!Grimoire.state.meta.settingsUnlocked && Grimoire.state.meta.playMs >= 90000) {
+            Grimoire.state.meta.settingsUnlocked = true;
+            Grimoire.mark('settings', 'layout');
+        }
         var ticks = 0;
         while (this.acc >= Grimoire.TICK_MS && ticks < 8) {
             this.acc -= Grimoire.TICK_MS;
@@ -65,19 +69,21 @@ Grimoire.engine = {
         this.roomLines(s);
         Grimoire.candle.tick(s, dt);
         Grimoire.jobs.tick(s, dt);
+        if (Grimoire.estate) Grimoire.estate.tick(s, dt);
         Grimoire.pages.tickFlashes(s, dt);
         this.tickSeasons(s);
         Grimoire.bleed.tick(s, dt);
         Grimoire.projects.tickAutos(s);
         this.tickEvents(s);
         Grimoire.view.stepFlame(s);
+        Grimoire.view.stepAscii(s);
         s.meta.lastTickAt = Date.now();
     },
 
     roomLines: function (s) {
         if (!s.meta.roomLine15 && s.meta.playMs >= 15000) {
             s.meta.roomLine15 = true;
-            Grimoire.log(s, 'dust hangs in the still air.');
+            Grimoire.log(s, 'dust holds in the air and does not settle.');
         }
         if (!s.meta.roomLine45 && s.meta.playMs >= 45000) {
             s.meta.roomLine45 = true;
@@ -155,21 +161,39 @@ Grimoire.engine = {
             }
             return { insight: 0, oilEmpty: true };
         }
-        var decay = Grimoire.candle.decayRate(s);
-        var drip = Grimoire.candle.dripRate(s);
-        var oilTime = decay > 0 ? s.resources.oil / decay : seconds;
-        var active = Math.min(seconds, oilTime);
-        s.resources.oil -= decay * active;
-        s.resources.tallow += drip * active;
-        Grimoire.clampResource(s, 'tallow', Grimoire.candle.tallowCap(s));
-        Grimoire.jobs.catchUp(s, active);
-        if (seconds > oilTime + 0.01) {
-            s.resources.oil = 0;
-            Grimoire.candle.extinguish(s);
-            oilEmpty = true;
-            if (!s.meta.offlineBleedDone) {
-                s.meta.bleedLevel = Math.min(100, s.meta.bleedLevel + 2);
-                s.meta.offlineBleedDone = true;
+        var remaining = seconds;
+        var guard = 0;
+        while (remaining > 0.0001 && guard < 8) {
+            guard += 1;
+            if (!s.meta.candleLit || s.resources.oil <= 0) {
+                oilEmpty = true;
+                break;
+            }
+            var decay = Grimoire.candle.decayRate(s);
+            var drip = Grimoire.candle.dripRate(s);
+            var oilTime = decay > 0 ? s.resources.oil / decay : remaining;
+            var slice = Math.min(remaining, oilTime);
+            var buffLeft = Grimoire.estate ? Grimoire.estate.buffLeft(s) : 0;
+            if (buffLeft > 0) slice = Math.min(slice, buffLeft);
+            s.resources.oil -= decay * slice;
+            s.resources.tallow += drip * slice;
+            Grimoire.clampResource(s, 'tallow', Grimoire.candle.tallowCap(s));
+            Grimoire.noteFirstTallow(s);
+            Grimoire.jobs.catchUp(s, slice);
+            if (Grimoire.estate) {
+                Grimoire.estate.catchUp(s, slice);
+                Grimoire.estate.advanceBuff(s, slice);
+            }
+            remaining -= slice;
+            if (s.resources.oil <= 0.0001) {
+                s.resources.oil = 0;
+                Grimoire.candle.extinguish(s);
+                oilEmpty = true;
+                if (!s.meta.offlineBleedDone) {
+                    s.meta.bleedLevel = Math.min(100, s.meta.bleedLevel + 2);
+                    s.meta.offlineBleedDone = true;
+                }
+                break;
             }
         }
         var insightGain = s.meta.totalInsightEarned - insight0;

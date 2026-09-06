@@ -23,7 +23,7 @@ Grimoire.CONTENT = {
     },
 
     subheadings: {
-        boot: 'a heavy book, brass-bound, dusty.',
+        boot: 'a heavy book. brass at the corners. dust on the top edge.',
         flame: 'the wick has a name. the room is less dark.',
         bolted: 'the door is bolted from the other side.',
         shutters: 'the shutters are open. the grounds are dark.'
@@ -53,7 +53,7 @@ Grimoire.CONTENT = {
         },
         copy: {
             label: 'Copy',
-            hint: 'ink from insight. the well must not be dry. the page is still not written.'
+            hint: 'ink from insight. the well must not run dry. the page is still not written.'
         },
         attend: {
             label: 'Attend the Page',
@@ -65,12 +65,108 @@ Grimoire.CONTENT = {
         }
     },
 
-    estateRooms: ['Library', 'Vault', 'Glasshouse', 'Cellars'],
+    estateRooms: {
+        hall: { name: 'Hall', flavor: 'the crossing. doors in four directions.' },
+        library: { name: 'Library', flavor: 'shelves. a table that wants a folio sewn.' },
+        vault: { name: 'Vault', flavor: 'a dry basin, stained to a tide line. ink takes the tarnish if you charge it.' },
+        glasshouse: { name: 'Glasshouse', flavor: 'wet earth under glass. it drips while you are elsewhere.' },
+        cellars: { name: 'Cellars', flavor: 'cool stone. hides wait on hooks.' },
+        gate: { name: 'the gate', flavor: 'gravel. the lantern stops here.' }
+    },
+
+    estateDiscover: {
+        hall: 'the crossing. four dark mouths.',
+        library: 'west: shelves. none of them lit.',
+        vault: 'east: stone and a dry basin.',
+        glasshouse: 'north: glass and a smell of wet earth.',
+        cellars: 'down: cool stone. hooks in the dark.',
+        gate: 'the lantern stops at the gravel.'
+    },
+
+    estateFinds: [
+        {
+            id: 'hook_grease',
+            rooms: ['cellars'],
+            name: 'hook grease',
+            seen: 'a smear on a hook you passed before. still warm.',
+            take: 'the grease is on your hands. hides will slip sooner.',
+            buff: 'renders run short',
+            kind: 'render',
+            mul: 1.6,
+            dur: 90
+        },
+        {
+            id: 'blotting_sand',
+            rooms: ['library'],
+            name: 'blotting sand',
+            seen: 'sand in a shelf gutter. it was not there the first time.',
+            take: 'the sand takes the wet. leaves will dry sooner.',
+            buff: 'collation runs short',
+            kind: 'collate',
+            mul: 1.6,
+            dur: 90
+        },
+        {
+            id: 'tarnish_flake',
+            rooms: ['vault'],
+            name: 'tarnish flake',
+            seen: 'a flake on the rim. you missed it walking out.',
+            take: 'the flake goes in. the bath will not idle.',
+            buff: 'the bath hurries',
+            kind: 'bath',
+            mul: 1.6,
+            dur: 90
+        },
+        {
+            id: 'warm_pane',
+            rooms: ['glasshouse'],
+            name: 'condensate',
+            seen: 'a thicker bead on the glass. the house kept it for your return.',
+            take: 'you take the bead. the drip is less shy.',
+            buff: 'the glasshouse drips faster',
+            kind: 'drip',
+            mul: 1.8,
+            dur: 120
+        },
+        {
+            id: 'wick_end',
+            rooms: ['hall', 'gate'],
+            name: 'wick-end',
+            seen: 'a saved end in a crack. you walked over it once.',
+            take: 'the bowl accepts it. the wick eats slower for a while.',
+            buff: 'the wick is less hungry',
+            kind: 'oil',
+            mul: 0.7,
+            dur: 120
+        },
+        {
+            id: 'margin_dust',
+            rooms: ['library', 'hall'],
+            name: 'margin dust',
+            seen: 'a film of dust that still holds a letter.',
+            take: 'the dust is on the desk now. transcribe comes easier.',
+            buff: 'transcribe runs warmer',
+            kind: 'transcribe',
+            mul: 1.4,
+            dur: 90
+        },
+        {
+            id: 'stopped_draft',
+            rooms: ['hall', 'cellars', 'gate'],
+            name: 'stopped draft',
+            seen: 'a rag in a gap. the air is even on the second pass.',
+            take: 'the house work does not fight the air.',
+            buff: 'the house works faster',
+            kind: 'house',
+            mul: 1.3,
+            dur: 75
+        }
+    ],
 
     listenLines: [
         'wood ticks in the shutter-frame. nothing answers.',
         'a gap in the slats. gravel, or something that sounds like it.',
-        'the last listen: a latch that is not on this side.'
+        'the third time: a latch, and it is not on this side.'
     ],
 
     welcomeBack: function (oilPct, insightGained, oilEmpty) {
@@ -82,7 +178,17 @@ Grimoire.CONTENT = {
             return oilBit + ' insight gathered while you were gone: ' + insightGained + '.';
         }
         return oilBit + ' the page did not turn itself.';
-    }
+    },
+
+    firstTallow: 'fat gathers on the lip.',
+    firstInk: 'the well takes a drop.',
+    firstVellum: 'a hide comes away clean. vellum.',
+    firstExtracts: 'the glass sweats. a drop runs to the sill.',
+    firstSilver: 'the bath gives back a coin, dull, one edge not struck.',
+    firstFolio: 'the leaves are sewn along one edge. it will hold together on a road.',
+    packetGone: 'the packet goes down the drive. nothing returns.',
+    packetObit: 'obituaries are not copied here.',
+    estateVisit: 'the grounds have a shape. you can walk it.'
 };
 
 Grimoire.CONTENT.projects = [
@@ -126,7 +232,7 @@ Grimoire.CONTENT.projects = [
         flavor: 'a dish under the lip. fat does not reach the wood.',
         once: true,
         tab: 'desk',
-        costs: { insight: 8 },
+        costs: { insight: 12 },
         kind: 'micro',
         reveal: function (s) {
             return Grimoire.hasUnlock(s, 'name_flame');
@@ -139,7 +245,8 @@ Grimoire.CONTENT.projects = [
         once: false,
         tab: 'desk',
         costs: { insight: 10 },
-        rate: 1.07,
+        rate: 1.15,
+        cap: 3,
         kind: 'micro',
         reveal: function (s) {
             return Grimoire.hasUnlock(s, 'name_flame') && s.meta.totalInsightEarned >= 8;
@@ -176,13 +283,13 @@ Grimoire.CONTENT.projects = [
         flavor: 'a raven feather, silver wire. it writes when you do not.',
         once: false,
         tab: 'desk',
-        costs: { ink: 12 },
+        costs: { ink: 18 },
         rate: 1.15,
         kind: 'building',
         cap: 12,
         capKey: 'quills',
         reveal: function (s) {
-            return (s.purchased.steel_nib || 0) >= 1 || s.resources.ink >= 6;
+            return (s.purchased.steel_nib || 0) >= 1 || s.resources.ink >= 9;
         }
     },
     {
@@ -214,7 +321,7 @@ Grimoire.CONTENT.projects = [
         flavor: 'the flame is split. less of it is wasted on the air.',
         once: false,
         tab: 'study',
-        costs: { ink: 12, passages: 1 },
+        costs: { ink: 22, passages: 1 },
         rate: 1.15,
         kind: 'building',
         reveal: function (s) {
@@ -257,6 +364,9 @@ Grimoire.CONTENT.projects = [
         tab: 'study',
         costs: { ink: 15 },
         kind: 'gate',
+        require: function (s) {
+            return s.generators.quills >= 1;
+        },
         reveal: function (s) {
             return Grimoire.hasUnlock(s, 'bolt_and_key') && s.generators.quills >= 1;
         }
@@ -267,10 +377,10 @@ Grimoire.CONTENT.projects = [
         flavor: 'leaves side by side. a lexicon can be bound from what repeats.',
         once: true,
         tab: 'study',
-        costs: { ink: 25, passages: 2 },
+        costs: { ink: 40, passages: 3 },
         kind: 'gate',
         reveal: function (s) {
-            return Grimoire.hasUnlock(s, 'bolt_and_key') && s.resources.ink >= 12;
+            return Grimoire.hasUnlock(s, 'bolt_and_key') && s.resources.ink >= 20;
         }
     },
     {
@@ -288,7 +398,7 @@ Grimoire.CONTENT.projects = [
     {
         id: 'under_text',
         title: 'Read the Under-Text',
-        flavor: 'another hand under the ink. the room admits more than it should.',
+        flavor: 'the leaf was scraped once and written again. the first hand is still under yours.',
         once: true,
         tab: 'study',
         costs: { lexicons: 2, ink: 30 },
@@ -300,7 +410,7 @@ Grimoire.CONTENT.projects = [
     {
         id: 'suppress',
         title: 'Suppress the Margin',
-        flavor: 'you press the extra hand back under. the room is smaller again.',
+        flavor: 'you let the top hand cover the other again. the room is smaller.',
         once: true,
         tab: 'study',
         costs: { lexicons: 2, ink: 30 },
@@ -367,7 +477,7 @@ Grimoire.CONTENT.projects = [
         flavor: 'a smaller light for the edge of the page. the dark is less close.',
         once: true,
         tab: 'study',
-        costs: { ink: 15 },
+        costs: { ink: 24 },
         kind: 'micro',
         reveal: function (s) {
             return Grimoire.hasUnlock(s, 'bolt_and_key');
@@ -383,6 +493,159 @@ Grimoire.CONTENT.projects = [
         kind: 'gate',
         reveal: function (s) {
             return Grimoire.hasUnlock(s, 'collation');
+        }
+    },
+    {
+        id: 'light_cellars',
+        title: 'Light the Cellars',
+        flavor: 'a cheap wick on a hook. the first room takes.',
+        once: true,
+        tab: 'estate',
+        costs: { tallow: 8 },
+        kind: 'gate',
+        strictReveal: true,
+        reveal: function (s) {
+            return !!s.meta.shuttersOpen;
+        }
+    },
+    {
+        id: 'light_library',
+        title: 'Light the Library',
+        flavor: 'lamps for the shelves. the table can be used.',
+        once: true,
+        tab: 'estate',
+        costs: { tallow: 12 },
+        kind: 'gate',
+        strictReveal: true,
+        teaseWhen: function (s) {
+            return Grimoire.hasUnlock(s, 'light_cellars');
+        },
+        reveal: function (s) {
+            return Grimoire.hasUnlock(s, 'light_cellars') && s.resources.tallow >= 6;
+        }
+    },
+    {
+        id: 'light_glasshouse',
+        title: 'Light the Glasshouse',
+        flavor: 'a stove under glass. the earth will drip without you.',
+        once: true,
+        tab: 'estate',
+        costs: { tallow: 18 },
+        kind: 'gate',
+        strictReveal: true,
+        teaseWhen: function (s) {
+            return Grimoire.hasUnlock(s, 'light_cellars') &&
+                (s.resources.folios >= 1 || s.resources.vellum >= 1);
+        },
+        reveal: function (s) {
+            return Grimoire.hasUnlock(s, 'light_cellars') &&
+                (s.resources.folios >= 1 || s.resources.vellum >= 1) &&
+                s.resources.tallow >= 9;
+        }
+    },
+    {
+        id: 'light_vault',
+        title: 'Light the Vault',
+        flavor: 'a flame over the basin. surplus ink has somewhere to go.',
+        once: true,
+        tab: 'estate',
+        costs: { ink: 16 },
+        kind: 'gate',
+        strictReveal: true,
+        teaseWhen: function (s) {
+            if (!s.meta.shuttersOpen) return false;
+            if (Grimoire.estate.litCount(s) < 1) return false;
+            return s.resources.ink >= 40 || (s.generators.assignments.copy || 0) >= 1;
+        },
+        reveal: function (s) {
+            if (!s.meta.shuttersOpen) return false;
+            if (Grimoire.estate.litCount(s) < 1) return false;
+            if (!(s.resources.ink >= 40 || (s.generators.assignments.copy || 0) >= 1)) return false;
+            return s.resources.ink >= 16;
+        }
+    },
+    {
+        id: 'tool_cellars',
+        title: 'Flensing Knife',
+        flavor: 'the hide comes away faster.',
+        once: false,
+        tab: 'estate',
+        costs: { ink: 10 },
+        rate: 1.15,
+        kind: 'building',
+        reveal: function (s) {
+            return Grimoire.hasUnlock(s, 'light_cellars');
+        }
+    },
+    {
+        id: 'tool_library',
+        title: 'Reading Stand',
+        flavor: 'the leaves stay where you put them.',
+        once: false,
+        tab: 'estate',
+        costs: { ink: 14 },
+        rate: 1.15,
+        kind: 'building',
+        reveal: function (s) {
+            return Grimoire.hasUnlock(s, 'light_library');
+        }
+    },
+    {
+        id: 'tool_glasshouse',
+        title: 'Misting Pan',
+        flavor: 'the earth stays wet. the drip is less shy.',
+        once: false,
+        tab: 'estate',
+        costs: { ink: 12 },
+        rate: 1.15,
+        kind: 'building',
+        reveal: function (s) {
+            return Grimoire.hasUnlock(s, 'light_glasshouse');
+        }
+    },
+    {
+        id: 'tool_vault',
+        title: 'Acid Retort',
+        flavor: 'the bath takes the tarnish sooner.',
+        once: false,
+        tab: 'estate',
+        costs: { silver: 1 },
+        rate: 1.15,
+        kind: 'building',
+        reveal: function (s) {
+            return Grimoire.hasUnlock(s, 'light_vault') && s.resources.silver >= 1;
+        }
+    },
+    {
+        id: 'mechanical_cataloger',
+        title: 'Mechanical Cataloger',
+        flavor: 'it finishes the leaves while you are in another room. it does not wind down.',
+        once: true,
+        tab: 'estate',
+        costs: { silver: 1, ink: 18 },
+        kind: 'gate',
+        strictReveal: true,
+        teaseWhen: function (s) {
+            return Grimoire.hasUnlock(s, 'light_vault') || s.resources.silver >= 1;
+        },
+        reveal: function (s) {
+            return s.resources.silver >= 1 && s.resources.ink >= 9;
+        }
+    },
+    {
+        id: 'packet_gate',
+        title: 'Leave a Packet at the Gate',
+        flavor: 'one lexicon, one folio. down the drive. nothing comes back.',
+        once: true,
+        tab: 'estate',
+        costs: { lexicons: 1, folios: 1 },
+        kind: 'gate',
+        strictReveal: true,
+        teaseWhen: function (s) {
+            return s.meta.shuttersOpen && (s.resources.folios >= 1 || Grimoire.hasUnlock(s, 'light_library'));
+        },
+        reveal: function (s) {
+            return s.resources.folios >= 1 && s.resources.lexicons >= 1;
         }
     }
 ];
@@ -406,7 +669,7 @@ Grimoire.CONTENT.events = [
             return Grimoire.hasUnlock(s, 'name_flame') && s.resources.oil > 0 &&
                 s.resources.oil < 25 && s.meta.candleLit;
         },
-        line: 'the wick gutters. tallow would hold it.',
+        line: 'the wick gutters. it wants feeding.',
         apply: function () {}
     },
     {
@@ -449,6 +712,7 @@ Grimoire.CONTENT.events = [
         line: 'a drop of ink on the blotter. you did not press.',
         apply: function (s) {
             s.resources.ink += 1;
+            Grimoire.noteFirstInk(s);
         }
     }
 ];
@@ -459,13 +723,13 @@ Grimoire.CONTENT.hints = {
     trim: 'feed the wick from the drip. you keep the light. you spend the fat. W',
     distill: 'render tallow into ink. the book cannot drink insight.',
     distillMutated: 'the same press. a colder name. fat still becomes ink.',
-    lexicon: 'bind what repeats. five finished leaves and eight drops make a cover.',
+    lexicon: 'bind what repeats. five passages that hold, eight drops of ink, one cover.',
     doubt: 'a name that should not be here. dated tomorrow.',
     settings: 'the copy. export, import, or abandon this sitting.',
     insight: 'what the marks leave in you. spent on the small work of the desk.',
     tallow: 'fat from a living wick. trim for light, or distill for ink. not both.',
     ink: 'rendered tallow. for nibs, feathers, and the later tools of the room.',
-    passages: 'a finished leaf. spent to catalog, to craft, to open what is shut.',
+    passages: 'a stretch that finally reads. spent to catalog, to craft, to open what is shut.',
     quills: 'hands that write without you. they transcribe until you assign otherwise.',
     lexicons: 'bound repeats. the house reads these more readily than loose leaves.',
     matches: 'phosphorus for a dead wick. three at first darkness. a strike costs insight.',
@@ -473,18 +737,32 @@ Grimoire.CONTENT.hints = {
     candleMeter: 'how much of the bowl remains. the flame\'s height is the same truth.',
     desk: 'the book. the wick. the first work.',
     study: 'the room that was always larger. jobs, boards, the later tools.',
-    estate: 'named dark. the grounds do not end where the lantern does.',
+    studyArt: 'the larger room. feathers take stations. the lamp answers a ward. the leaf only moves for Attend.',
+    estate: 'the house has a shape. walk it. one room at a time.',
     binding: 'sealed. the rite is not for this sitting.',
+    estateMap: 'click a door beside you, or use the arrows. a bar in a room means work is cooking. ! is a scrap left on a return walk.',
+    estateFind: 'not on the first pass. walk a room again and sometimes a scrap is waiting. take it for a short help.',
+    renderHide: 'tallow and time. a hide becomes vellum. you may leave it.',
+    collateFolio: 'vellum and ink. the bar fills while you stand here, or a quill, or the Cataloger.',
+    chargeBath: 'surplus ink into the basin. extracts hurry it. silver comes when it finishes.',
+    tendGlass: 'it drips while you are away. standing here, or a quill, makes it less slow.',
+    sendQuill: 'one feather may leave the study. it hurries the room it stands in. recall it to transcribe.',
+    recallQuill: 'the house feather returns to Transcribe. Study has it again.',
     matchChoice: 'three insight, one match, a bowl that holds again.',
     sitChoice: 'you wait. an ember in eight seconds. the dark leaves a mark.',
-    tease: 'the cost is visible. the work is not.'
+    tease: 'the cost is visible. the work is not.',
+    chapter: 'how much of the leaf has stayed. numbered after you keep an index.',
+    vellum: 'hides rendered in the Cellars. Library collation spends them.',
+    folios: 'sewn leaves. a packet at the gate wants one.',
+    extracts: 'glasshouse drip. a vault bath will take a drop if you have one.',
+    silver: 'from a vault bath, not from clicking. house tools and the Cataloger spend it.',
 };
 
 Grimoire.CONTENT.projectHints = {
     catalog_page: 'one finished leaf, spent. after this, fat can be pressed into ink.',
     wick_stub: 'a saved end in the bowl. a little more light. once.',
     catch_drip: 'more fat from the same burn. a dish under the lip.',
-    press_once: 'each buy adds 15 charges. Decipher spends one for +1 insight. buy again to add more. grey means you cannot pay the next cost yet.',
+    press_once: 'three packs only. each adds 15 charges. Decipher spends one for +1 insight. a short help before a quill can be bound.',
     steady_hand: 'more letters stay on the leaf. one in three, not one in four.',
     steel_nib: 'each click leaves more insight. cheap at first. the price climbs.',
     bind_quill: 'a feather that transcribes while you look away. it will not turn the page for you.',
@@ -495,13 +773,23 @@ Grimoire.CONTENT.projectHints = {
     attend_lesson: 'unlocks a job: a quill may watch the leaf. slow. the only automatic writing.',
     collation: 'a board for repeats. after this, lexicons can be bound.',
     index: 'the chapter numbered. you can find a page by its place.',
-    under_text: 'open the aperture. the room admits more. the blotter notices.',
+    under_text: 'read what is under the scraping. the room admits more. the blotter notices.',
     suppress: 'close what was opened. the room is smaller. safer, if you want that.',
     listen_shutter: 'oil and a lexicon, spent on a sound. three times. then silence.',
     open_shutters: 'the sixth sentence, and three bound covers. the grounds do not end.',
     wax_reserve: 'a cake in the drawer. the wick eats slower. once.',
     second_desk: 'one more waiting row on the list. you see further.',
     margin_lamp: 'the dark sits further from the page. you still need the wick.',
-    codex_bind: 'the sentences listed. you may read them again.'
+    codex_bind: 'the sentences listed. you may read them again.',
+    light_cellars: 'the first wick in the house. cheap tallow. a hide can be rendered here.',
+    light_library: 'lamps for the shelves. collation needs the vellum the Cellars made.',
+    light_glasshouse: 'a stove under glass. extracts drip on the season clock. no sudden gifts.',
+    light_vault: 'a flame over the basin. ink you already have becomes silver, slowly.',
+    tool_cellars: 'shortens a render. the price climbs. there is no second workforce.',
+    tool_library: 'shortens a collation. the Cataloger is separate, and permanent.',
+    tool_glasshouse: 'the drip is less shy. still the same 80-minute season.',
+    tool_vault: 'the bath finishes sooner. paid in silver you already rendered.',
+    mechanical_cataloger: 'Library collations finish while you walk elsewhere. it never decays.',
+    packet_gate: 'one lexicon and one folio, left on the gravel. nothing returns. obituaries stay a memory, not a craft.'
 };
 
