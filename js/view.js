@@ -17,6 +17,9 @@ Grimoire.view = {
     reducedMotion: false,
     LOG_KEEP: 7,
     hintAnchor: null,
+    hintPinned: false,
+    hintDock: false,
+    hintTouch: false,
 
     bind: function () {
         var self = this;
@@ -83,6 +86,8 @@ Grimoire.view = {
             studyArt: $('study-art'),
             bindingNote: $('binding-note'),
             hintCard: $('hint-card'),
+            hintCardText: $('hint-card-text'),
+            hintDismiss: $('hint-card-dismiss'),
             bootVeil: $('boot-veil'),
             btnLight: $('btn-light'),
             darkActs: $('dark-acts'),
@@ -93,6 +98,7 @@ Grimoire.view = {
         this.settingsFocusBefore = null;
         this.buildRuneSlots();
         this.bindEvents();
+        this.syncHintMode();
         this.bindHints();
         this.syncMotionPref();
         if (window.matchMedia) {
@@ -100,6 +106,19 @@ Grimoire.view = {
             var onMotion = function () { self.syncMotionPref(); };
             if (mq.addEventListener) mq.addEventListener('change', onMotion);
             else if (mq.addListener) mq.addListener(onMotion);
+            var onHintMq = function () {
+                self.syncHintMode();
+                self.refitHint();
+            };
+            var mqNarrow = window.matchMedia('(max-width: 899px)');
+            var mqHover = window.matchMedia('(hover: none)');
+            if (mqNarrow.addEventListener) {
+                mqNarrow.addEventListener('change', onHintMq);
+                mqHover.addEventListener('change', onHintMq);
+            } else if (mqNarrow.addListener) {
+                mqNarrow.addListener(onHintMq);
+                mqHover.addListener(onHintMq);
+            }
         }
     },
 
@@ -271,6 +290,12 @@ Grimoire.view = {
                 if (send) Grimoire.estate.dispatch(s(), send);
                 if (btn.getAttribute('data-recall') === '1') Grimoire.estate.recall(s());
                 if (btn.getAttribute('data-take-find') === '1') Grimoire.estate.takeFind(s());
+                if (btn.getAttribute('data-listen') === '1') Grimoire.estate.listen(s());
+                if (btn.getAttribute('data-drawer') === '1') Grimoire.estate.openDrawer(s());
+                var salvage = btn.getAttribute('data-salvage');
+                if (salvage) Grimoire.estate.salvageBatch(s(), salvage);
+                var dump = btn.getAttribute('data-dump');
+                if (dump) Grimoire.estate.dumpBatch(s(), dump);
             });
         }
         this.els.jobRows.addEventListener('click', function (e) {
@@ -288,6 +313,8 @@ Grimoire.view = {
 
         window.addEventListener('resize', function () {
             Grimoire.dirty.vignette = true;
+            self.syncHintMode();
+            self.refitHint();
             self.fitDesk();
         });
 
@@ -299,6 +326,7 @@ Grimoire.view = {
             }
             if (e.key === 'Escape') {
                 self.closeSettings();
+                self.hideHint();
                 return;
             }
             var tag = (e.target && e.target.tagName) || '';
@@ -339,7 +367,8 @@ Grimoire.view = {
     },
 
     onProjectClick: function (e) {
-        var btn = e.target.closest('[data-project]');
+        if (e.target.closest && e.target.closest('.project-info')) return;
+        var btn = e.target.closest('button.project-buy');
         if (!btn || btn.disabled) return;
         Grimoire.projects.buy(Grimoire.state, btn.getAttribute('data-project'));
     },
@@ -450,6 +479,20 @@ Grimoire.view = {
         return hints[key] || '';
     },
 
+    syncHintMode: function () {
+        var narrow = window.matchMedia && window.matchMedia('(max-width: 899px)').matches;
+        var noHover = window.matchMedia && window.matchMedia('(hover: none)').matches;
+        this.hintDock = !!(narrow || noHover);
+        this.hintTouch = this.hintDock;
+        var html = document.documentElement;
+        html.classList.toggle('hint-dock', this.hintDock);
+        html.classList.toggle('hint-touch', this.hintTouch);
+    },
+
+    hintTextOf: function (card) {
+        return (this.els.hintCardText || card).textContent;
+    },
+
     bindHints: function () {
         var self = this;
         var showFrom = function (target) {
@@ -469,27 +512,119 @@ Grimoire.view = {
             }
             self.showHint(el, text);
         };
-        document.addEventListener('pointerover', function (e) { showFrom(e.target); });
+        document.addEventListener('pointerover', function (e) {
+            if (self.hintTouch) return;
+            showFrom(e.target);
+        });
         document.addEventListener('pointerout', function (e) {
+            if (self.hintTouch) return;
             var to = e.relatedTarget;
             if (to && to.nodeType === 1 && to.closest && to.closest('[data-hint]')) {
                 showFrom(to);
                 return;
             }
-            if (to && to.nodeType === 1 && to.id === 'hint-card') return;
+            if (to && to.nodeType === 1 && (to.id === 'hint-card' || (to.closest && to.closest('#hint-card')))) return;
             self.hideHint();
         });
-        document.addEventListener('focusin', function (e) { showFrom(e.target); });
-        document.addEventListener('focusout', function () { self.hideHint(); });
+        document.addEventListener('focusin', function (e) {
+            if (self.hintTouch) return;
+            showFrom(e.target);
+        });
+        document.addEventListener('focusout', function () {
+            if (self.hintTouch) return;
+            self.hideHint();
+        });
+        document.addEventListener('click', function (e) {
+            if (!self.hintTouch) return;
+            var t = e.target;
+            if (!t || !t.closest) return;
+            if (t.closest('#settings-modal') || t.closest('#settings-backdrop')) return;
+            if (t.closest('#hint-card')) {
+                self.hideHint();
+                return;
+            }
+            var info = t.closest('.project-info');
+            if (info) {
+                e.preventDefault();
+                e.stopPropagation();
+                self.toggleHint(info.closest('.project-row') || info);
+                return;
+            }
+            if (t.closest('button, a, input, textarea, select, [role="tab"]')) {
+                if (self.hintPinned) self.hideHint();
+                return;
+            }
+            var hintEl = t.closest('[data-hint]');
+            if (hintEl && !hintEl.closest('.job-row')) {
+                self.toggleHint(hintEl);
+                return;
+            }
+            if (self.hintPinned) self.hideHint();
+        }, true);
+        if (this.els.hintDismiss) {
+            this.els.hintDismiss.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                self.hideHint();
+            });
+        }
+    },
+
+    toggleHint: function (el) {
+        if (!el) return;
+        if (this.hintPinned && this.hintAnchor === el) {
+            this.hideHint();
+            return;
+        }
+        var text = this.resolveHint(el);
+        if (!text) {
+            this.hideHint();
+            return;
+        }
+        this.hintPinned = true;
+        this.showHint(el, text);
+    },
+
+    refitHint: function () {
+        if (!this.hintAnchor || !this.els.hintCard || !this.els.hintCard.classList.contains('is-on')) return;
+        var text = this.resolveHint(this.hintAnchor) || this.hintTextOf(this.els.hintCard);
+        var anchor = this.hintAnchor;
+        var pinned = this.hintPinned;
+        this.hintAnchor = null;
+        this.showHint(anchor, text);
+        this.hintPinned = pinned;
+    },
+
+    placeDockedHint: function (card) {
+        card.style.left = '';
+        card.style.top = '';
+        card.style.bottom = '';
+        if (document.documentElement.classList.contains('candle-drowned')) return;
+        if (!document.documentElement.classList.contains('on-desk')) return;
+        var acts = document.getElementById('action-buttons');
+        var panel = document.getElementById('panel-desk');
+        if (!acts || (panel && panel.classList.contains('hidden'))) return;
+        var h = acts.offsetHeight;
+        if (!h) return;
+        card.style.bottom = (h + 8) + 'px';
     },
 
     showHint: function (anchor, text) {
         var card = this.els.hintCard;
+        var body = this.els.hintCardText || card;
         if (!card || !anchor) return;
-        if (this.hintAnchor === anchor && card.textContent === text && card.classList.contains('is-on')) return;
+        if (this.hintAnchor === anchor && body.textContent === text && card.classList.contains('is-on')) return;
         this.hintAnchor = anchor;
-        card.textContent = text;
+        body.textContent = text;
+        card.classList.toggle('is-docked', !!this.hintDock);
+        if (this.els.hintDismiss) this.els.hintDismiss.classList.toggle('hidden', !this.hintDock);
         card.classList.remove('hidden');
+        document.documentElement.classList.toggle('hint-open', !!this.hintDock);
+        if (this.hintDock) {
+            this.placeDockedHint(card);
+            card.classList.add('is-on');
+            return;
+        }
         card.classList.remove('is-on');
         card.style.left = '-9999px';
         card.style.top = '0px';
@@ -504,6 +639,8 @@ Grimoire.view = {
             left = r.left - cw - pad;
             top = r.top;
             if (left < 8) left = r.right + pad;
+            if (left + cw > window.innerWidth - 8) left = window.innerWidth - cw - 8;
+            if (left < 8) left = 8;
             if (top + ch > window.innerHeight - 8) top = window.innerHeight - ch - 8;
             if (top < 8) top = 8;
         } else {
@@ -521,9 +658,12 @@ Grimoire.view = {
 
     hideHint: function () {
         this.hintAnchor = null;
+        this.hintPinned = false;
+        document.documentElement.classList.remove('hint-open');
         if (!this.els.hintCard) return;
         this.els.hintCard.classList.add('hidden');
-        this.els.hintCard.classList.remove('is-on');
+        this.els.hintCard.classList.remove('is-on', 'is-docked');
+        this.els.hintCard.style.bottom = '';
     },
 
     playLightCue: function (name) {
@@ -688,6 +828,7 @@ Grimoire.view = {
 
         var tab = s.meta.activeTab || 'desk';
         if (!study) tab = 'desk';
+        document.documentElement.classList.toggle('on-desk', tab === 'desk' && !!s.meta.deskRevealed);
         this.els.tabDesk.setAttribute('aria-selected', tab === 'desk' ? 'true' : 'false');
         this.els.tabStudy.setAttribute('aria-selected', tab === 'study' ? 'true' : 'false');
         this.els.tabEstate.setAttribute('aria-selected', tab === 'estate' ? 'true' : 'false');
@@ -804,17 +945,25 @@ Grimoire.view = {
             if (est.length !== shownE) this.fillProjects(this.els.estateProjects, s, 'estate');
         }
 
-        var buttons = document.querySelectorAll('button[data-project]');
+        var buttons = document.querySelectorAll('button.project-buy');
         for (var i = 0; i < buttons.length; i++) {
             var btn = buttons[i];
             var p = Grimoire.projects.byId(btn.getAttribute('data-project'));
             if (!p) continue;
-            var row = btn.parentNode;
+            var row = btn.closest('.project-row');
             if (row && row.classList.contains('dim')) continue;
             var affordable = Grimoire.projects.canBuy(s, p);
             if (btn.disabled !== !affordable) btn.disabled = !affordable;
-            var label = Grimoire.projects.buttonLabel(s, p, false);
-            if (btn.textContent !== label) btn.textContent = label;
+            var parts = Grimoire.projects.buttonParts(s, p, false);
+            var titleEl = btn.querySelector('.project-title');
+            var costEl = btn.querySelector('.project-cost');
+            if (titleEl && costEl) {
+                if (titleEl.textContent !== parts.title) titleEl.textContent = parts.title;
+                if (costEl.textContent !== parts.cost) costEl.textContent = parts.cost;
+            } else {
+                var label = Grimoire.projects.buttonLabel(s, p, false);
+                if (btn.textContent !== label) btn.textContent = label;
+            }
             if (row) row.classList.toggle('has-charges', p.id === 'press_once' && (s.meta.pressOnceLeft || 0) > 0);
             if (affordable && !s.meta.lastAffordable[p.id]) {
                 s.meta.lastAffordable[p.id] = true;
@@ -954,6 +1103,7 @@ Grimoire.view = {
         }
         if (tease) html += this.projectRow(s, tease, true);
         root.innerHTML = html;
+        if (this.hintAnchor && this.hintAnchor.isConnected === false) this.hideHint();
     },
 
     projectRow: function (s, p, dim) {
@@ -965,8 +1115,7 @@ Grimoire.view = {
             s.meta.lastAffordable[p.id] = true;
         }
         if (!affordable) s.meta.lastAffordable[p.id] = false;
-        var cost = Grimoire.projects.costLabel(s, p);
-        var title = dim ? '????' : p.title;
+        var parts = Grimoire.projects.buttonParts(s, p, dim);
         var cls = 'project-row';
         if (dim) cls += ' dim';
         if (pulse && !this.reducedMotion) cls += ' pulse-affordable';
@@ -978,8 +1127,14 @@ Grimoire.view = {
             var line = Grimoire.projects.effectText(s, p);
             if (line) fx = '<div class="project-effect">' + line + '</div>';
         }
-        return '<div class="' + cls + '"' + hint + '><button type="button" data-project="' + p.id + '"' + disabled + '>' +
-            Grimoire.projects.buttonLabel(s, p, dim) + '</button>' + fx + '</div>';
+        var about = dim ? 'about this mark' : 'about ' + p.title;
+        return '<div class="' + cls + '"' + hint + '>' +
+            '<button type="button" class="project-buy" data-project="' + p.id + '"' + disabled + '>' +
+            '<span class="project-title">' + parts.title + '</span>' +
+            '<span class="project-cost">' + parts.cost + '</span>' +
+            '</button>' +
+            '<button type="button" class="project-info" aria-label="' + about + '">?</button>' +
+            fx + '</div>';
     },
 
     padAscii: function (text, n) {
@@ -1129,9 +1284,11 @@ Grimoire.view = {
         if (!this.els.estateMap || !s.meta.shuttersOpen) return;
         if (Grimoire.estate) Grimoire.estate.ensure(s);
         if (this.els.estateLead) {
-            this.els.estateLead.textContent = s.meta.packetLeft
-                ? 'a packet went down the drive. nothing has come back up it.'
-                : 'the grounds have a shape. walk it. one room at a time.';
+            this.els.estateLead.textContent = s.meta.packetTwice
+                ? 'a second packet went. still nothing has come back up it.'
+                : s.meta.packetLeft
+                    ? 'a packet went down the drive. nothing has come back up it.'
+                    : 'the grounds have a shape. walk it. one room at a time.';
         }
         var mapSig = Grimoire.estate.mapSig(s);
         if (this.els.estateMap.getAttribute('data-sig') !== mapSig) {
@@ -1192,11 +1349,16 @@ Grimoire.view = {
             left = E.secondsLeft(s, room);
         }
         var pct = Math.max(0, Math.min(100, Math.floor(progress * 100)));
+        var spoiled = E.isSpoiled(s, room);
         var findId = (s.meta.estateFind && s.meta.estateFind.id) || '';
         var buffId = (s.meta.estateBuff && s.meta.estateBuff.id) || '';
         var sig = [room, E.isLit(s, room) ? 'L' : 'd', live ? '1' : '0', cooking ? 'c' : '',
-            s.meta.dispatchedQuill || '', E.canStart(s, room) ? 's' : '',
+            spoiled ? 'x' : '', s.meta.dispatchedQuill || '', E.canStart(s, room) ? 's' : '',
             E.canDispatch(s, room) ? 'q' : '', Grimoire.hasUnlock(s, 'mechanical_cataloger') ? 'k' : '',
+            Grimoire.hasUnlock(s, 'hall_lantern') ? 'h' : '',
+            s.meta.packetLeft ? 'p' : '', s.meta.packetTwice ? '2' : '',
+            s.meta.estateKey ? 'K' : '', s.meta.drawerOpen ? 'D' : '',
+            E.canListen(s) ? 'l' : '', E.canOpenDrawer(s) ? 'w' : '',
             findId, buffId, Math.ceil(E.buffLeft(s))].join('|');
         if (root.getAttribute('data-sig') === sig) {
             var fill = root.querySelector('.estate-bar-fill');
@@ -1204,7 +1366,8 @@ Grimoire.view = {
             var vignette = root.querySelector('.estate-vignette');
             if (fill) fill.style.width = pct + '%';
             if (time) {
-                if (!live && cooking) time.textContent = 'paused. the candle is out.';
+                if (spoiled) time.textContent = 'soured. salvage or dump.';
+                else if (!live && cooking) time.textContent = 'paused. the candle is out.';
                 else if (cooking && room === 'library' && !E.libraryCanProgress(s)) {
                     time.textContent = 'waiting — stay, send a quill, or the Cataloger.';
                 } else if (cooking && left > 0) time.textContent = Math.ceil(left) + 's';
@@ -1237,26 +1400,45 @@ Grimoire.view = {
                 html += '<p>unlit. Light waits on the list below.</p>';
             } else if (room === 'glasshouse') {
                 html += '<p>it drips while you are away. standing here, or a quill, makes it less slow.</p>';
-                html += this.estateBarHtml(pct, live, left, 'extract');
+                html += this.estateBarHtml(pct, live, left, 'extract', false);
             } else {
                 var hintKey = room === 'cellars' ? 'renderHide' : room === 'library' ? 'collateFolio' : 'chargeBath';
                 html += '<p class="muted">' + (Grimoire.CONTENT.hints[hintKey] || '') + '</p>';
-                if (room === 'library' && !E.libraryCanProgress(s) && cooking) {
-                    html += '<p class="muted">the collation waits. stay, send a quill, or buy the Cataloger.</p>';
+                if (spoiled) {
+                    html += '<p class="muted">the wick died while this was cooking.</p>';
+                    html += '<button type="button" data-salvage="' + room + '" data-hint="salvageBatch">salvage what will take</button>';
+                    html += '<button type="button" data-dump="' + room + '" data-hint="salvageBatch">dump it</button>';
+                    html += this.estateBarHtml(pct, live, left, room, true);
+                } else {
+                    if (room === 'library' && !E.libraryCanProgress(s) && cooking) {
+                        html += '<p class="muted">the collation waits. stay, send a quill, or buy the Cataloger.</p>';
+                    }
+                    if (cooking && live && (room === 'cellars' || room === 'vault')) {
+                        html += '<p class="muted">you are standing here. it finishes sooner.</p>';
+                    }
+                    var can = E.canStart(s, room);
+                    html += '<button type="button" data-start="' + room + '" data-hint="' + hintKey + '"' +
+                        (can ? '' : ' disabled') + '>' + E.startLabel(s, room) + '</button>';
+                    if (cooking) html += this.estateBarHtml(pct, live, left, room, false);
                 }
-                var can = E.canStart(s, room);
-                html += '<button type="button" data-start="' + room + '" data-hint="' + hintKey + '"' +
-                    (can ? '' : ' disabled') + '>' + E.startLabel(s, room) + '</button>';
-                if (cooking) html += this.estateBarHtml(pct, live, left, room);
             }
         } else if (room === 'hall') {
-            html += '<p class="muted">click a door beside you, or use the arrows.</p>';
+            if (Grimoire.hasUnlock(s, 'hall_lantern')) {
+                html += '<p class="muted">the lantern names the dark. click a door, or use the arrows.</p>';
+            } else {
+                html += '<p class="muted">click a door beside you, or use the arrows.</p>';
+            }
+            html += this.estateListenHtml(s);
+            html += this.estateDrawerHtml(s);
         } else if (room === 'gate') {
-            if (s.meta.packetLeft) {
+            if (s.meta.packetTwice) {
+                html += '<p>a second packet went. the gravel is not disturbed.</p>';
+            } else if (s.meta.packetLeft) {
                 html += '<p>the drive is empty. the gravel is not disturbed.</p>';
             } else {
                 html += '<p class="muted">a packet could be left here. obituaries are not copied on the estate.</p>';
             }
+            html += this.estateListenHtml(s);
         }
         root.innerHTML = html;
     },
@@ -1270,16 +1452,40 @@ Grimoire.view = {
             '<button type="button" data-take-find="1" data-hint="estateFind">take the ' + def.name + '</button>';
     },
 
+    estateListenHtml: function (s) {
+        if (!Grimoire.estate.canListen(s)) return '';
+        return '<button type="button" data-listen="1" data-hint="estateListen">listen</button>';
+    },
+
+    estateDrawerHtml: function (s) {
+        var E = Grimoire.estate;
+        if (s.meta.drawerOpen) {
+            return '<p class="muted">the drawer stands open. the slot is empty.</p>';
+        }
+        if (E.canOpenDrawer(s)) {
+            return '<button type="button" data-drawer="1" data-hint="estateDrawer">open the drawer</button>';
+        }
+        if (s.meta.estateKey && !s.meta.packetLeft) {
+            return '<p class="muted">the key does not fit yet. the drive has not been used.</p>';
+        }
+        if (s.meta.packetLeft && !s.meta.estateKey) {
+            return '<p class="muted">a drawer in the wainscot. it wants a key.</p>';
+        }
+        return '';
+    },
+
     estateBuffHtml: function (s) {
         var line = Grimoire.estate.buffLine(s);
         if (!line) return '';
         return '<p class="estate-buff">' + line + '</p>';
     },
 
-    estateBarHtml: function (pct, live, left, kind) {
-        var time = !live ? 'paused. the candle is out.' : (left > 0 ? Math.ceil(left) + 's' : 'working');
-        var label = kind === 'extract' ? 'drip' : 'batch';
-        return '<div class="estate-bar" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" aria-label="' + label + '">' +
+    estateBarHtml: function (pct, live, left, kind, spoiled) {
+        var time = spoiled ? 'soured. salvage or dump.' :
+            (!live ? 'paused. the candle is out.' : (left > 0 ? Math.ceil(left) + 's' : 'working'));
+        var label = kind === 'extract' ? 'drip' : (spoiled ? 'soured batch' : 'batch');
+        return '<div class="estate-bar' + (spoiled ? ' is-spoiled' : '') +
+            '" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100" aria-label="' + label + '">' +
             '<div class="estate-bar-fill" style="width:' + pct + '%"></div></div>' +
             '<p class="estate-bar-time muted">' + time + '</p>';
     },

@@ -48,7 +48,7 @@ The notebook often wanted a soot spreadsheet, a 3-column boot, amber-on-black, a
 - The journal is **the blotter**, not a generic log.
 - The oil **percent readout** stays hidden until the wick is “seen” (oil ≤ 20% of cap, or after it has been seen once). Naming the flame unlocks tallow / trim, not a full HUD meter.
 - Settings (`…`) unlock after **90 seconds** of play, not only after Study.
-- **Hint cards** on hover / focus; **Show exact upgrade numbers** in settings.
+- **Hint cards** on hover / focus on desktop. On mobile (or any no-hover layout) they dock as a note: `?` on an upgrade, tap a ledger name or the candle; tap the note or × to put it away. Buy is still one tap. **Show exact upgrade numbers** in settings.
 - Darkness uses an overlay (`#dark-acts`): Strike Match, Trim (if tallow), Sit. Not only journal buttons.
 - **Collation Board** is a one-shot (one board). The workshop formula still exists but with W=1 it is a small bump, not a board shop.
 - `translationPercent` = `stableLettersLifetime / runesFinishedLifetime` (capped at 99 until Sentence 12).
@@ -66,7 +66,7 @@ No framework. Global `Grimoire` namespace. Scripts in `index.html` order:
 - **Tick:** 200 ms. Scholar day = 2400 ticks (8 min). Season = 24000 ticks (**80 min**).
 - **Render:** `requestAnimationFrame` + dirty patches. Do not rebuild the rune overlay every tick.
 - **Save:** `localStorage` key `grimoire.v1`, backup `grimoire.v1.bak`, Base64 envelope + FNV-style checksum. `SAVE_VERSION` **2**. Mismatch **warns** and keeps last good save; it does not wipe. v1 shutters saves migrate in place.
-- **Offline:** analytical catch-up, cap **12 hours**. Welcome-back line if away > 3 min. Seasons do **not** advance offline. Copy stops when Insight hits 0. After oil empty: no production, +2 bleed once, no auto-relight. Started Manor batches complete linearly while the candle would still have burned; drip continues; the dispatched quill stays in its room. No auto-Light, no auto-start.
+- **Offline:** analytical catch-up, cap **12 hours**. Welcome-back line if away > 3 min. Seasons do **not** advance offline. Copy stops when Insight hits 0. After oil empty: no production, +2 bleed once, no auto-relight. Started Manor batches complete linearly while the candle would still have burned (house work is applied for that burn window, then the oil is spent); drip continues; the dispatched quill stays in its room. A hide or bath still cooking when the wick dies **sours**. No auto-Light, no auto-start.
 - **Autosave:** 15 s, plus hide-tab and `beforeunload`.
 - **Numbers:** `ceil` costs, `floor` display, suffix format in `economics.js`. No `decimal.js` in v1.
 
@@ -113,9 +113,9 @@ Light wick → Decipher (Insight + rune) → tallow drips as oil burns
 | Ink | Distill; Copy job | Nibs, quills, Study tools, Lexicon (8); Vault Light; baths; house tools; Cataloger |
 | Passages | +1 per finished page | Catalog 1, prism/lamp, Collation 3, Lexicon 5 |
 | Quills | Bind (18 ink, r=1.15, cap 12) | Assignment, or **one** dispatched into the house |
-| Lexicons | Bind Lexicon after Collation | Index 3, Under-Text/Suppress 2, Listen 1, Open Shutters 3, Codex 1, Second Desk 2, packet 1 |
+| Lexicons | Bind Lexicon after Collation | Index 3, Under-Text/Suppress 2, Listen 1, Open Shutters 3, Codex 1, Second Desk 2, packet 1, second packet 1 |
 | Vellum | Cellars **Render** batch | Library **Collate** |
-| Folios | Library **Collate** batch | Packet at the gate |
+| Folios | Library **Collate** batch | Packet at the gate; File the Folios (3); second packet (2) |
 | Extracts | Glasshouse drip (season-scaled) | Optional Vault bath catalyst |
 | Silver | Vault **bath** (not clicking) | Mechanical Cataloger; Acid Retort |
 | Matches | 3 at first darkness; Spare Matches +2, cap 12 | Strike Match |
@@ -132,6 +132,7 @@ Light wick → Decipher (Insight + rune) → tallow drips as oil burns
 2. **Strike Match:** 3 Insight + 1 match → +40 oil.
 3. **Sit:** +4 bleed, 8 s wait, +15 oil ember.
 4. If matches = 0 and Insight < 3, Sit still works.
+5. A Cellars hide or Vault bath that was cooking **sours**. In that room: salvage a little tallow (3) or ink (4), or dump it. Library collation only pauses. Glasshouse drip pauses.
 
 ---
 
@@ -190,6 +191,9 @@ Reveal: explicit `reveal(state)` **or** all cost currencies visible and player h
 | tool_* | estate | ink or silver, r=1.15 | Shorten that room’s batch / drip |
 | mechanical_cataloger | estate | 1 Silver + 18 Ink | Library collations finish unattended. Permanent. |
 | packet_gate | estate | 1 Lexicon + 1 Folio | Packet down the drive. Nothing returns. Binding stays sealed. |
+| hall_lantern | estate | 8 Tallow | After Cellars Light. Unlit adjacent wings keep their names. They still need their own Light. |
+| file_folios | estate | 3 Folios | After the first packet. House batches/drip ×1.08. |
+| packet_again | estate | 1 Lexicon + 2 Folios | After the hall drawer. A second packet. Still nothing returns. |
 
 Estate Lights stagger as dim teases. Interior verbs (Render / Collate / Charge / drip) are not project rows.
 
@@ -277,7 +281,7 @@ If the player stares at a grey button > 90 s in the first half hour, add an unfo
 
 The 80 min season clock is canon. The old 2–3 h Solstice line was a beat-chart slip, not a request to shorten `SEASON_TICKS`.
 
-**Manor hungers (Horizon III):** a cooking bar vs Attend vs sending the only house quill vs the packet tease while a room is still dark. Lights stagger as dim teases. First Light is the Cellars (cheap tallow). The candle drowned pauses all house work.
+**Manor hungers (Horizon III):** a cooking bar vs Attend vs sending the only house quill vs the packet tease while a room is still dark. Lights stagger as dim teases. First Light is the Cellars (cheap tallow). The candle drowned pauses all house work; a cooking hide or bath **sours** (salvage or dump). Standing in Cellars or Vault still shortens that batch after the Cataloger. Seasons touch more than drip (Solstice hides hurry; Equinox collation is easy and the bath is slow). After the packet: file extra folios, hang a hall lantern, listen at hall/gate, hunt a house key on a 3rd+ return walk, open the hall drawer, maybe a second packet. Binding stays sealed. Quill Bind cap stays **12** until a pacing-rig pass says otherwise.
 
 ---
 
@@ -315,7 +319,7 @@ Prestige when it exists: `C = sqrt(I_L / 1e12)` on lifetime Insight. First rite 
 
 v1 last beat (Open the Shutters) is still a complete sitting. Horizon III continues on **that same save**.
 
-- **III Manor (shipped, SAVE_VERSION 2):** the Estate is an **atelier you walk**, not Study-style job nodes. ASCII map: Hall in the center, Glasshouse north, Library west, Vault east, Cellars south, the gate beyond. Each working room shows a gold progress strip (empty when idle; fuller is closer to done; muted if paused) and a short flavor ASCII line (hooks, shelves, drip, basin, gravel) that stirs while the house is live — atmosphere, not a second meter. Interiors keep a small vignette above the verbs. Enter one interior at a time; other rooms keep their timers. **Render** (tallow → vellum), **Collate** (vellum + ink → folio; pauses unless you are in the Library, a quill is there, or the Mechanical Cataloger is owned), **Tend** (Glasshouse extract drip, faster if you are here or the quill is here, season-scaled, no Golden Cookie spawns), **Charge the bath** (ink, optional extract → silver). Room tools (r=1.15) shorten batch time. At most **one dispatched quill**. Walking a room a second time can leave a scrap (`!` on the map): take it for a short buff (faster that room’s work, or oil / transcribe / whole-house). First entry never drops one. Returning to a cooking room is likelier. Packet at the gate (1 lexicon + 1 folio): blotter says it went down the drive; nothing returns; obituaries are not craftable on the estate. Binding stays sealed.
+- **III Manor (shipped, SAVE_VERSION 2):** the Estate is an **atelier you walk**, not Study-style job nodes. ASCII map: Hall in the center, Glasshouse north, Library west, Vault east, Cellars south, the gate beyond. Each working room shows a gold progress strip (empty when idle; fuller is closer to done; muted if paused; brown if soured) and a short flavor ASCII line (hooks, shelves, drip, basin, gravel) that stirs while the house is live — atmosphere, not a second meter. Interiors keep a small vignette above the verbs. Enter one interior at a time; other rooms keep their timers. **Render** (tallow → vellum; ×1.35 if you stand there), **Collate** (vellum + ink → folio; pauses unless you are in the Library, a quill is there, or the Mechanical Cataloger is owned), **Tend** (Glasshouse extract drip, faster if you are here or the quill is here, season-scaled, no Golden Cookie spawns), **Charge the bath** (ink, optional extract → silver; ×1.35 if you stand there). Seasons also scale hide / collation / bath. Room tools (r=1.15) shorten batch time. At most **one dispatched quill**. Walking a room a second time can leave a scrap (`!` on the map): take it for a short buff (faster that room’s work, or oil / transcribe / whole-house). First entry never drops one. Returning to a cooking room is likelier. A rare 3rd+ return can leave a **house key**. Hall and gate have a **listen** line (cooldown). **Hall lantern** names adjacent dark wings; they still need Light. Packet at the gate (1 lexicon + 1 folio): blotter says it went down the drive; nothing returns; obituaries are not craftable on the estate. After the packet: **File the Folios** (3, house ×1.08); a locked hall **drawer** (key + empty drive) that notes *again*; a **second packet** (2 folios + 1 lexicon). Still nothing returns. Binding stays sealed.
 - **IV Network:** Obituaries cannot be made on the estate; couriers trade Lexicons. Recruits as efficiency numbers. First prestige available.
 - **V Astrolabe:** same 80-min season clock drives four named bodies. Aperture vs text density.
 - **VI Rite:** burn the house; cinder shop (Memory of Ink, Unshuttered Mind, Dilated Tallow, Under-Text).
@@ -352,6 +356,8 @@ Cold boot → Light the Candle → first page → first darkness → first quill
 Debug: `dbg` fab, F2, Ctrl+Shift+D, or five taps on the title. **Jump Manor**: shutters, Cellars lit, a little tallow/ink — not four rooms, not a pre-sent quill.
 
 Manor playtest (v1 shutters save): first Light < 3 min; a Render bar you can leave and return to; you never see four +/− rows on Estate; sending the house quill visibly slows Study; first silver from a Vault bath; packet shows while something in the house is still unfinished; overnight, started batches are done and you still have to start the next.
+
+Headless: `node tools/manor-playthrough.js` (writes `tools/manor-results.json`). Clocks are manor-relative from a seeded shutters save, Cellars unlit. v1 desk pacing remains `node tools/pacing-playthrough.js`.
 
 ---
 

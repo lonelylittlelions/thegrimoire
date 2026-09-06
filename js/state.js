@@ -149,12 +149,13 @@ Grimoire.defaultState = function () {
             dispatchedQuill: null,
             estateSeen: { hall: true, gate: true, cellars: true },
             estateBatches: {
-                cellars: { active: false, progress: 0, usedExtract: false },
-                library: { active: false, progress: 0, usedExtract: false },
-                vault: { active: false, progress: 0, usedExtract: false },
+                cellars: { active: false, progress: 0, usedExtract: false, spoiled: false },
+                library: { active: false, progress: 0, usedExtract: false, spoiled: false },
+                vault: { active: false, progress: 0, usedExtract: false, spoiled: false },
                 glasshouse: { active: false, progress: 0, usedExtract: false }
             },
             packetLeft: false,
+            packetTwice: false,
             vellumLogged: false,
             extractsLogged: false,
             silverLogged: false,
@@ -162,7 +163,11 @@ Grimoire.defaultState = function () {
             estateFind: null,
             estateBuff: null,
             estateFindCool: 0,
-            estateEntered: {}
+            estateEntered: {},
+            estateVisits: {},
+            estateKey: false,
+            drawerOpen: false,
+            estateListenCool: 0
         }
     };
 };
@@ -248,12 +253,13 @@ Grimoire.serializable = function (s) {
             dispatchedQuill: s.meta.dispatchedQuill || null,
             estateSeen: s.meta.estateSeen || { hall: true, gate: true, cellars: true },
             estateBatches: s.meta.estateBatches || {
-                cellars: { active: false, progress: 0, usedExtract: false },
-                library: { active: false, progress: 0, usedExtract: false },
-                vault: { active: false, progress: 0, usedExtract: false },
+                cellars: { active: false, progress: 0, usedExtract: false, spoiled: false },
+                library: { active: false, progress: 0, usedExtract: false, spoiled: false },
+                vault: { active: false, progress: 0, usedExtract: false, spoiled: false },
                 glasshouse: { active: false, progress: 0, usedExtract: false }
             },
             packetLeft: !!s.meta.packetLeft,
+            packetTwice: !!s.meta.packetTwice,
             vellumLogged: !!s.meta.vellumLogged,
             extractsLogged: !!s.meta.extractsLogged,
             silverLogged: !!s.meta.silverLogged,
@@ -261,7 +267,11 @@ Grimoire.serializable = function (s) {
             estateFind: s.meta.estateFind || null,
             estateBuff: s.meta.estateBuff || null,
             estateFindCool: s.meta.estateFindCool || 0,
-            estateEntered: s.meta.estateEntered || {}
+            estateEntered: s.meta.estateEntered || {},
+            estateVisits: s.meta.estateVisits || {},
+            estateKey: !!s.meta.estateKey,
+            drawerOpen: !!s.meta.drawerOpen,
+            estateListenCool: s.meta.estateListenCool || 0
         }
     };
 };

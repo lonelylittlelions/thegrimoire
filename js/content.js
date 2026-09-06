@@ -160,6 +160,14 @@ Grimoire.CONTENT = {
             kind: 'house',
             mul: 1.3,
             dur: 75
+        },
+        {
+            id: 'house_key',
+            rooms: ['hall', 'library', 'cellars', 'gate'],
+            name: 'house key',
+            seen: 'a small key in a crack. you have passed it twice.',
+            take: 'it fits a drawer you have not opened.',
+            kind: 'key'
         }
     ],
 
@@ -168,6 +176,21 @@ Grimoire.CONTENT = {
         'a gap in the slats. gravel, or something that sounds like it.',
         'the third time: a latch, and it is not on this side.'
     ],
+
+    estateListen: {
+        hall: {
+            idle: 'wood in the crossing. four doors, none of them speaking.',
+            cooking: 'something ticks behind a door. a batch, not a guest.',
+            dark: 'the mouths of the house. without a wick they keep their names.',
+            empty: 'the drive took a packet. the hall does not sound different. that is the difference.'
+        },
+        gate: {
+            idle: 'gravel. the lantern stops. nothing on the road.',
+            cooking: 'the house is working behind you. the gate does not care.',
+            dark: 'the drive without a wick. the gravel is the same color as the rest.',
+            empty: 'the packet went. the stones have not moved.'
+        }
+    },
 
     welcomeBack: function (oilPct, insightGained, oilEmpty) {
         if (oilEmpty) {
@@ -188,6 +211,12 @@ Grimoire.CONTENT = {
     firstFolio: 'the leaves are sewn along one edge. it will hold together on a road.',
     packetGone: 'the packet goes down the drive. nothing returns.',
     packetObit: 'obituaries are not copied here.',
+    packetAgain: 'a second packet goes down the drive. still nothing returns.',
+    drawerOpen: 'the latch gives. a slot the size of a folio, empty, and a note: again.',
+    estateDrown: 'the wick died. what was cooking in the house has soured.',
+    estateSalvageCellars: 'you scrape what will still take. some tallow comes back.',
+    estateSalvageVault: 'the bath is ruined. a little ink comes off the rim.',
+    estateDump: 'you empty it. nothing to keep.',
     estateVisit: 'the grounds have a shape. you can walk it.'
 };
 
@@ -647,6 +676,55 @@ Grimoire.CONTENT.projects = [
         reveal: function (s) {
             return s.resources.folios >= 1 && s.resources.lexicons >= 1;
         }
+    },
+    {
+        id: 'hall_lantern',
+        title: 'Hang a Hall Lantern',
+        flavor: 'a lantern in the crossing. the dark rooms keep their names.',
+        once: true,
+        tab: 'estate',
+        costs: { tallow: 8 },
+        kind: 'gate',
+        strictReveal: true,
+        teaseWhen: function (s) {
+            return Grimoire.hasUnlock(s, 'light_cellars');
+        },
+        reveal: function (s) {
+            return Grimoire.hasUnlock(s, 'light_cellars') && s.resources.tallow >= 4;
+        }
+    },
+    {
+        id: 'file_folios',
+        title: 'File the Folios',
+        flavor: 'three covers on a shelf. the house keeps them in order.',
+        once: true,
+        tab: 'estate',
+        costs: { folios: 3 },
+        kind: 'gate',
+        strictReveal: true,
+        teaseWhen: function (s) {
+            return !!s.meta.packetLeft && (s.resources.folios >= 1 || Grimoire.hasUnlock(s, 'light_library'));
+        },
+        reveal: function (s) {
+            return !!s.meta.packetLeft && s.resources.folios >= 1;
+        }
+    },
+    {
+        id: 'packet_again',
+        title: 'Leave a Second Packet',
+        flavor: 'two folios, one lexicon. down the drive again.',
+        once: true,
+        tab: 'estate',
+        costs: { lexicons: 1, folios: 2 },
+        kind: 'gate',
+        strictReveal: true,
+        teaseWhen: function (s) {
+            return !!s.meta.drawerOpen && !s.meta.packetTwice;
+        },
+        reveal: function (s) {
+            return !!s.meta.drawerOpen && !s.meta.packetTwice &&
+                (s.resources.folios >= 1 || s.resources.lexicons >= 1);
+        }
     }
 ];
 
@@ -742,9 +820,12 @@ Grimoire.CONTENT.hints = {
     binding: 'sealed. the rite is not for this sitting.',
     estateMap: 'click a door beside you, or use the arrows. a bar in a room means work is cooking. ! is a scrap left on a return walk.',
     estateFind: 'not on the first pass. walk a room again and sometimes a scrap is waiting. take it for a short help.',
-    renderHide: 'tallow and time. a hide becomes vellum. you may leave it.',
+    estateListen: 'the hall and the gate have a sound. it changes if the house is working, dark, or empty.',
+    estateDrawer: 'a drawer in the hall. it wants a key from a return walk, and a drive that has already taken a packet.',
+    salvageBatch: 'the wick died while this was cooking. scrape back a little, or dump it.',
+    renderHide: 'tallow and time. a hide becomes vellum. you may leave it. standing here, it finishes sooner.',
     collateFolio: 'vellum and ink. the bar fills while you stand here, or a quill, or the Cataloger.',
-    chargeBath: 'surplus ink into the basin. extracts hurry it. silver comes when it finishes.',
+    chargeBath: 'surplus ink into the basin. extracts hurry it. silver comes when it finishes. standing here, it finishes sooner.',
     tendGlass: 'it drips while you are away. standing here, or a quill, makes it less slow.',
     sendQuill: 'one feather may leave the study. it hurries the room it stands in. recall it to transcribe.',
     recallQuill: 'the house feather returns to Transcribe. Study has it again.',
@@ -753,7 +834,7 @@ Grimoire.CONTENT.hints = {
     tease: 'the cost is visible. the work is not.',
     chapter: 'how much of the leaf has stayed. numbered after you keep an index.',
     vellum: 'hides rendered in the Cellars. Library collation spends them.',
-    folios: 'sewn leaves. a packet at the gate wants one.',
+    folios: 'sewn leaves. the gate wants them. a shelf will take extras after the first packet.',
     extracts: 'glasshouse drip. a vault bath will take a drop if you have one.',
     silver: 'from a vault bath, not from clicking. house tools and the Cataloger spend it.',
 };
@@ -790,6 +871,9 @@ Grimoire.CONTENT.projectHints = {
     tool_glasshouse: 'the drip is less shy. still the same 80-minute season.',
     tool_vault: 'the bath finishes sooner. paid in silver you already rendered.',
     mechanical_cataloger: 'Library collations finish while you walk elsewhere. it never decays.',
-    packet_gate: 'one lexicon and one folio, left on the gravel. nothing returns. obituaries stay a memory, not a craft.'
+    packet_gate: 'one lexicon and one folio, left on the gravel. nothing returns. obituaries stay a memory, not a craft.',
+    hall_lantern: 'hung in the crossing. unlit wings keep their names on the map. they still need their own Light.',
+    file_folios: 'three sewn covers, filed. the house work runs a little shorter. after the first packet.',
+    packet_again: 'two folios and a lexicon, after the drawer. still nothing returns.'
 };
 

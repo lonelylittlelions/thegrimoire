@@ -233,6 +233,20 @@ Grimoire.projects = {
                 Grimoire.log(s, Grimoire.CONTENT.packetObit, { highlight: true });
                 Grimoire.mark('estate', 'subhead');
                 break;
+            case 'hall_lantern':
+                Grimoire.addUnlock(s, 'hall_lantern');
+                Grimoire.mark('estate');
+                break;
+            case 'file_folios':
+                Grimoire.addUnlock(s, 'file_folios');
+                Grimoire.mark('estate');
+                break;
+            case 'packet_again':
+                s.meta.packetTwice = true;
+                Grimoire.addUnlock(s, 'packet_again');
+                Grimoire.log(s, Grimoire.CONTENT.packetAgain, { highlight: true });
+                Grimoire.mark('estate', 'subhead');
+                break;
             default:
                 break;
         }
@@ -304,7 +318,7 @@ Grimoire.projects = {
 
     tease: function (s, tab) {
         var prefer = tab === 'estate'
-            ? ['light_cellars', 'light_library', 'packet_gate', 'mechanical_cataloger', 'light_vault', 'light_glasshouse']
+            ? ['light_cellars', 'hall_lantern', 'light_library', 'packet_gate', 'file_folios', 'packet_again', 'mechanical_cataloger', 'light_vault', 'light_glasshouse']
             : ['open_shutters', 'attend_lesson', 'collation', 'catalog_page', 'bind_quill'];
         var list = Grimoire.CONTENT.projects;
         var found = [];
@@ -345,16 +359,19 @@ Grimoire.projects = {
         return parts.join(', ') || '—';
     },
 
-    buttonLabel: function (s, p, dim) {
+    buttonParts: function (s, p, dim) {
         var cost = this.costLabel(s, p);
-        if (dim) return '???? — ' + cost;
-        if (p.id === 'press_once') {
+        if (p.id === 'press_once' && !dim) {
             var left = s.meta.pressOnceLeft || 0;
             var packs = this.owned(s, p.id) + '/' + (p.cap || 3);
-            if (left > 0) return p.title + ' — ' + cost + ' · ' + packs + ' · ' + left + ' left';
-            return p.title + ' — ' + cost + ' · ' + packs;
+            cost += left > 0 ? ' · ' + packs + ' · ' + left + ' left' : ' · ' + packs;
         }
-        return p.title + ' — ' + cost;
+        return { title: dim ? '????' : p.title, cost: cost };
+    },
+
+    buttonLabel: function (s, p, dim) {
+        var parts = this.buttonParts(s, p, dim);
+        return parts.title + ' — ' + parts.cost;
     },
 
     rateStr: function (n, digits) {
@@ -466,6 +483,12 @@ Grimoire.projects = {
                 return 'Library collations finish while you walk elsewhere. Permanent.';
             case 'packet_gate':
                 return 'Leave 1 Lexicon and 1 Folio on the gravel. Nothing returns.';
+            case 'hall_lantern':
+                return 'Name the dark wings from the hall. They still need their own Light.';
+            case 'file_folios':
+                return 'File 3 Folios. House work ×1.08.';
+            case 'packet_again':
+                return 'Leave 1 Lexicon and 2 Folios. Still nothing returns.';
             default:
                 return '';
         }

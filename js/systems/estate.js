@@ -9,7 +9,14 @@ Grimoire.estate = {
     BATH_INK: 12,
     FIND_CHANCE: 0.2,
     FIND_CHANCE_RETURN: 0.4,
+    FIND_KEY_CHANCE: 0.18,
+    KEY_VISITS: 3,
     FIND_COOLDOWN_MS: 70000,
+    LISTEN_COOLDOWN_MS: 40000,
+    PRESENCE_MUL: 1.35,
+    HOUSE_FILE_MUL: 1.08,
+    SALVAGE_CELLARS_TALLOW: 3,
+    SALVAGE_VAULT_INK: 4,
     QUILL_MUL: 1.75,
     EXTRACT_MUL: 1.75,
     TOOL_MUL: 1.12,
@@ -44,10 +51,13 @@ Grimoire.estate = {
             s.meta.estateBatches = {};
         }
         var b = s.meta.estateBatches;
-        if (!b.cellars) b.cellars = { active: false, progress: 0, usedExtract: false };
-        if (!b.library) b.library = { active: false, progress: 0, usedExtract: false };
-        if (!b.vault) b.vault = { active: false, progress: 0, usedExtract: false };
+        if (!b.cellars) b.cellars = { active: false, progress: 0, usedExtract: false, spoiled: false };
+        if (!b.library) b.library = { active: false, progress: 0, usedExtract: false, spoiled: false };
+        if (!b.vault) b.vault = { active: false, progress: 0, usedExtract: false, spoiled: false };
         if (!b.glasshouse) b.glasshouse = { active: false, progress: 0, usedExtract: false };
+        if (b.cellars.spoiled == null) b.cellars.spoiled = false;
+        if (b.library.spoiled == null) b.library.spoiled = false;
+        if (b.vault.spoiled == null) b.vault.spoiled = false;
         if (s.meta.dispatchedQuill === undefined) s.meta.dispatchedQuill = null;
         if (s.resources.folios == null) s.resources.folios = 0;
         if (s.meta.shuttersOpen && !s.meta.estateRoom) s.meta.estateRoom = 'hall';
@@ -57,6 +67,13 @@ Grimoire.estate = {
         if (!s.meta.estateEntered || typeof s.meta.estateEntered !== 'object') {
             s.meta.estateEntered = {};
         }
+        if (!s.meta.estateVisits || typeof s.meta.estateVisits !== 'object') {
+            s.meta.estateVisits = {};
+        }
+        if (s.meta.estateKey == null) s.meta.estateKey = false;
+        if (s.meta.drawerOpen == null) s.meta.drawerOpen = false;
+        if (s.meta.estateListenCool == null) s.meta.estateListenCool = 0;
+        if (s.meta.packetTwice == null) s.meta.packetTwice = false;
         if (s.meta.shuttersOpen && s.meta.estateRoom) {
             s.meta.estateEntered[s.meta.estateRoom] = true;
         }
@@ -83,6 +100,9 @@ Grimoire.estate = {
         this.ensure(s);
         if (s.meta.estateSeen[roomId]) return true;
         if (this.isWork(roomId) && this.isLit(s, roomId)) return true;
+        if (Grimoire.hasUnlock(s, 'hall_lantern') && this.adjacent('hall', roomId) && this.isWork(roomId)) {
+            return true;
+        }
         return false;
     },
 
@@ -121,16 +141,17 @@ Grimoire.estate = {
         if (!s.meta.shuttersOpen) return false;
         if (!this.canWalk(s, dest)) return false;
         this.ensure(s);
-        var first = !this.isSeen(s, dest);
         var firstWalk = !s.meta.estateEntered[dest];
         s.meta.estateSeen[dest] = true;
         s.meta.estateEntered[dest] = true;
+        s.meta.estateVisits[dest] = (s.meta.estateVisits[dest] || 0) + 1;
         s.meta.estateRoom = dest;
-        if (first) {
+        if (firstWalk) {
             var line = Grimoire.CONTENT.estateDiscover[dest];
             if (line) Grimoire.log(s, line, { highlight: true });
+        } else {
+            this.maybeFind(s, dest);
         }
-        if (!firstWalk) this.maybeFind(s, dest);
         Grimoire.mark('estate', 'projects', 'buttons');
         return true;
     },
@@ -167,11 +188,27 @@ Grimoire.estate = {
         if (s.meta.estateFind) return false;
         if ((s.meta.playMs || 0) < (s.meta.estateFindCool || 0)) return false;
         if (this.isWork(roomId) && !this.isLit(s, roomId)) return false;
+        var visits = (s.meta.estateVisits && s.meta.estateVisits[roomId]) || 0;
+        if (!s.meta.estateKey && visits >= this.KEY_VISITS) {
+            var keyDef = this.findDef('house_key');
+            if (keyDef && keyDef.rooms && keyDef.rooms.indexOf(roomId) !== -1 &&
+                Math.random() < this.FIND_KEY_CHANCE) {
+                s.meta.estateFind = { id: 'house_key', room: roomId };
+                Grimoire.log(s, keyDef.seen);
+                Grimoire.mark('estate', 'log');
+                return true;
+            }
+        }
         var pool = this.findsFor(roomId);
-        if (!pool.length) return false;
+        var buffs = [];
+        var i;
+        for (i = 0; i < pool.length; i++) {
+            if (pool[i].kind !== 'key') buffs.push(pool[i]);
+        }
+        if (!buffs.length) return false;
         var chance = this.cooking(s, roomId) ? this.FIND_CHANCE_RETURN : this.FIND_CHANCE;
         if (Math.random() >= chance) return false;
-        var pick = pool[Math.floor(Math.random() * pool.length)];
+        var pick = buffs[Math.floor(Math.random() * buffs.length)];
         s.meta.estateFind = { id: pick.id, room: roomId };
         Grimoire.log(s, pick.seen);
         Grimoire.mark('estate', 'log');
@@ -185,11 +222,14 @@ Grimoire.estate = {
         var def = this.findDef(sitting.id);
         s.meta.estateFind = null;
         s.meta.estateFindCool = (s.meta.playMs || 0) + this.FIND_COOLDOWN_MS;
-        if (def) {
+        if (def && def.kind === 'key') {
+            s.meta.estateKey = true;
+            Grimoire.log(s, def.take);
+        } else if (def) {
             s.meta.estateBuff = { id: def.id, left: def.dur };
             Grimoire.log(s, def.take);
         }
-        Grimoire.mark('estate', 'jobs', 'buttons', 'resources');
+        Grimoire.mark('estate', 'jobs', 'buttons', 'resources', 'projects');
         return true;
     },
 
@@ -257,6 +297,8 @@ Grimoire.estate = {
     isWorkPaused: function (s, roomId) {
         if (this.workProgress(s, roomId) == null) return false;
         if (!this.houseLive(s)) return true;
+        var b = s.meta.estateBatches[roomId];
+        if (b && b.spoiled) return true;
         if (roomId === 'library' && !this.libraryCanProgress(s)) return true;
         return false;
     },
@@ -264,6 +306,7 @@ Grimoire.estate = {
     progressPhrase: function (s, roomId) {
         var p = this.workProgress(s, roomId);
         if (p == null) return '';
+        if (this.isSpoiled(s, roomId)) return 'soured';
         if (this.isWorkPaused(s, roomId)) return 'waiting';
         if (p >= 0.8) return 'almost done';
         if (p >= 0.45) return 'underway';
@@ -350,11 +393,12 @@ Grimoire.estate = {
         var paused = this.isWorkPaused(s, roomId);
         var stir = live && cooking && !paused;
         if (roomId === 'hall') {
+            var named = Grimoire.hasUnlock(s, 'hall_lantern') ? '   the dark keeps names' : '   four dark mouths';
             return [
                 '        |',
                 '     ---@---',
                 '        |',
-                '   four dark mouths'
+                named
             ].join('\n');
         }
         if (roomId === 'gate') {
@@ -365,6 +409,9 @@ Grimoire.estate = {
             return ['    ' + gravel, '      [  ]', '   the lantern stops'].join('\n');
         }
         if (roomId === 'cellars') {
+            if (this.isSpoiled(s, 'cellars')) {
+                return ['  n   n   n', ' (x) (x) ( )', '  ==========', '   the fat is cold'].join('\n');
+            }
             var hooks = stir ? ['  n   n~  n', '  n~  n   n', ' ~n   n   n', '  n   n  ~n'][f] : '  n   n   n';
             var hides = stir ? [' ( ) (~) ( )', ' (~) ( ) ( )', ' ( ) ( ) (~)', ' (.) ( ) ( )'][f] : ' ( ) ( ) ( )';
             return [hooks, hides, '  ==========', '   cool stone'].join('\n');
@@ -378,6 +425,9 @@ Grimoire.estate = {
             return ['   glass and earth', drip, '  the season keeps'].join('\n');
         }
         if (roomId === 'vault') {
+            if (this.isSpoiled(s, 'vault')) {
+                return ['   a ruined basin', '    ( x )', '  the bath is cold'].join('\n');
+            }
             var basin = stir ? ['    ( ~ )', '    ( - )', '    ( ~ )', '    (   )'][f] : '    ( U )';
             return ['   a dry basin', basin, '  ink takes tarnish'].join('\n');
         }
@@ -406,14 +456,50 @@ Grimoire.estate = {
         return s.meta.dispatchedQuill === roomId ? this.QUILL_MUL : 1;
     },
 
+    presenceMul: function (s, roomId) {
+        if (s.meta.estateRoom !== roomId) return 1;
+        if (roomId === 'cellars' || roomId === 'vault') return this.PRESENCE_MUL;
+        return 1;
+    },
+
+    houseMul: function (s) {
+        return Grimoire.hasUnlock(s, 'file_folios') ? this.HOUSE_FILE_MUL : 1;
+    },
+
+    seasonMul: function (s, roomId) {
+        var name = Grimoire.CONTENT.seasons[s.meta.season] || 'Spring';
+        if (roomId === 'cellars') {
+            if (name === 'Solstice') return 1.5;
+            if (name === 'Autumn') return 1.15;
+            if (name === 'Equinox') return 0.9;
+        }
+        if (roomId === 'library') {
+            if (name === 'Equinox') return 1.4;
+            if (name === 'Solstice') return 0.8;
+        }
+        if (roomId === 'vault') {
+            if (name === 'Equinox') return 0.7;
+            if (name === 'Solstice') return 1.2;
+        }
+        return 1;
+    },
+
+    isSpoiled: function (s, roomId) {
+        this.ensure(s);
+        var b = s.meta.estateBatches[roomId];
+        return !!(b && b.active && b.spoiled);
+    },
+
     progressRate: function (s, roomId) {
         var base = this.BASE_DURATION[roomId];
         if (!base) return 0;
         var b = s.meta.estateBatches[roomId];
         if (!b || !b.active) return 0;
+        if (b.spoiled) return 0;
         if (roomId === 'library' && !this.libraryCanProgress(s)) return 0;
         var kind = roomId === 'cellars' ? 'render' : roomId === 'library' ? 'collate' : 'bath';
-        var mul = this.toolMul(s, roomId) * this.quillMul(s, roomId) * this.buffMul(s, kind);
+        var mul = this.toolMul(s, roomId) * this.quillMul(s, roomId) * this.buffMul(s, kind) *
+            this.presenceMul(s, roomId) * this.seasonMul(s, roomId) * this.houseMul(s);
         if (roomId === 'vault' && b.usedExtract) mul *= this.EXTRACT_MUL;
         return mul / base;
     },
@@ -431,6 +517,7 @@ Grimoire.estate = {
         if (s.meta.estateRoom === 'glasshouse') rate *= 2;
         if (s.meta.dispatchedQuill === 'glasshouse') rate *= 2;
         rate *= this.buffMul(s, 'drip');
+        rate *= this.houseMul(s);
         var season = Grimoire.CONTENT.seasons[s.meta.season] || 'Spring';
         if (season === 'Solstice') rate *= 2;
         else if (season === 'Equinox') rate *= 0.5;
@@ -497,6 +584,7 @@ Grimoire.estate = {
         }
         b.active = true;
         b.progress = 0;
+        b.spoiled = false;
         Grimoire.mark('estate', 'resources', 'projects', 'buttons');
         return true;
     },
@@ -508,6 +596,7 @@ Grimoire.estate = {
             b.active = false;
             b.progress = 0;
             b.usedExtract = false;
+            b.spoiled = false;
         }
         if (roomId === 'cellars') {
             s.resources.vellum += 1;
@@ -606,6 +695,113 @@ Grimoire.estate = {
         this.advanceBuff(s, dt);
     },
 
+    anyCooking: function (s) {
+        this.ensure(s);
+        for (var i = 0; i < this.WORK.length; i++) {
+            if (this.cooking(s, this.WORK[i])) return true;
+        }
+        return false;
+    },
+
+    onDrown: function (s) {
+        this.ensure(s);
+        var rooms = ['cellars', 'vault'];
+        var spoiled = false;
+        for (var i = 0; i < rooms.length; i++) {
+            var b = s.meta.estateBatches[rooms[i]];
+            if (b && b.active && !b.spoiled) {
+                b.spoiled = true;
+                spoiled = true;
+            }
+        }
+        if (spoiled) {
+            Grimoire.log(s, Grimoire.CONTENT.estateDrown);
+            Grimoire.mark('estate', 'log', 'buttons');
+        }
+    },
+
+    canSalvage: function (s, roomId) {
+        this.ensure(s);
+        if (this.current(s) !== roomId) return false;
+        return this.isSpoiled(s, roomId);
+    },
+
+    salvageBatch: function (s, roomId) {
+        if (!this.canSalvage(s, roomId)) return false;
+        var b = s.meta.estateBatches[roomId];
+        b.active = false;
+        b.progress = 0;
+        b.usedExtract = false;
+        b.spoiled = false;
+        if (roomId === 'cellars') {
+            s.resources.tallow += this.SALVAGE_CELLARS_TALLOW;
+            Grimoire.clampResource(s, 'tallow', Grimoire.candle.tallowCap(s));
+            Grimoire.log(s, Grimoire.CONTENT.estateSalvageCellars);
+        } else if (roomId === 'vault') {
+            s.resources.ink += this.SALVAGE_VAULT_INK;
+            Grimoire.log(s, Grimoire.CONTENT.estateSalvageVault);
+        } else {
+            Grimoire.log(s, Grimoire.CONTENT.estateDump);
+        }
+        Grimoire.mark('estate', 'resources', 'projects', 'buttons', 'log');
+        return true;
+    },
+
+    dumpBatch: function (s, roomId) {
+        if (!this.canSalvage(s, roomId)) return false;
+        var b = s.meta.estateBatches[roomId];
+        b.active = false;
+        b.progress = 0;
+        b.usedExtract = false;
+        b.spoiled = false;
+        Grimoire.log(s, Grimoire.CONTENT.estateDump);
+        Grimoire.mark('estate', 'resources', 'projects', 'buttons', 'log');
+        return true;
+    },
+
+    listenMood: function (s, roomId) {
+        if (!this.houseLive(s)) return 'dark';
+        if (roomId === 'gate' && s.meta.packetLeft) return 'empty';
+        if (roomId === 'hall' && s.meta.packetLeft && !this.anyCooking(s)) return 'empty';
+        if (this.anyCooking(s)) return 'cooking';
+        return 'idle';
+    },
+
+    canListen: function (s) {
+        this.ensure(s);
+        var room = this.current(s);
+        if (room !== 'hall' && room !== 'gate') return false;
+        return (s.meta.playMs || 0) >= (s.meta.estateListenCool || 0);
+    },
+
+    listen: function (s) {
+        if (!this.canListen(s)) return false;
+        var room = this.current(s);
+        var mood = this.listenMood(s, room);
+        var table = Grimoire.CONTENT.estateListen || {};
+        var lines = table[room] || {};
+        var line = lines[mood] || lines.idle;
+        if (line) Grimoire.log(s, line);
+        s.meta.estateListenCool = (s.meta.playMs || 0) + this.LISTEN_COOLDOWN_MS;
+        Grimoire.mark('estate', 'log', 'buttons');
+        return true;
+    },
+
+    canOpenDrawer: function (s) {
+        this.ensure(s);
+        if (this.current(s) !== 'hall') return false;
+        if (!s.meta.estateKey || !s.meta.packetLeft) return false;
+        return !s.meta.drawerOpen;
+    },
+
+    openDrawer: function (s) {
+        if (!this.canOpenDrawer(s)) return false;
+        s.meta.drawerOpen = true;
+        Grimoire.log(s, Grimoire.CONTENT.drawerOpen, { highlight: true });
+        Grimoire.mark('estate', 'log', 'projects', 'buttons');
+        return true;
+    },
+
     catchUp: function (s, seconds) {
         if (seconds <= 0 || !s.meta.shuttersOpen) return;
         this.ensure(s);
@@ -644,6 +840,7 @@ Grimoire.estate = {
             var p = this.workProgress(s, id);
             parts.push(id + (this.isSeen(s, id) ? 's' : '.') + (this.isLit(s, id) ? 'L' : 'd') +
                 (p == null ? '' : 'w') + (this.isWorkPaused(s, id) ? 'P' : '') +
+                (this.isSpoiled(s, id) ? 'X' : '') +
                 (here === id ? '@' : '') +
                 (s.meta.dispatchedQuill === id ? 'q' : '') + (this.hasFind(s, id) ? '!' : '') + (this.canWalk(s, id) ? '>' : ''));
         }
@@ -660,7 +857,8 @@ Grimoire.estate = {
         var p = this.workProgress(s, roomId);
         if (p != null) {
             cls += ' is-work';
-            if (this.isWorkPaused(s, roomId)) cls += ' is-paused';
+            if (this.isSpoiled(s, roomId)) cls += ' is-paused is-spoiled';
+            else if (this.isWorkPaused(s, roomId)) cls += ' is-paused';
             else if (p >= 0.8) cls += ' is-late';
             else if (p >= 0.45) cls += ' is-mid';
             else cls += ' is-early';

@@ -140,6 +140,7 @@ Grimoire.candle = {
             s.meta.pendingChoice = 'darkness';
             Grimoire.log(s, 'the flame is gone. the room does not end at the desk.', { highlight: true });
         }
+        if (Grimoire.estate) Grimoire.estate.onDrown(s);
         Grimoire.mark('candle', 'vignette', 'buttons', 'log');
     },
 

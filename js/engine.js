@@ -175,15 +175,15 @@ Grimoire.engine = {
             var slice = Math.min(remaining, oilTime);
             var buffLeft = Grimoire.estate ? Grimoire.estate.buffLeft(s) : 0;
             if (buffLeft > 0) slice = Math.min(slice, buffLeft);
-            s.resources.oil -= decay * slice;
-            s.resources.tallow += drip * slice;
-            Grimoire.clampResource(s, 'tallow', Grimoire.candle.tallowCap(s));
-            Grimoire.noteFirstTallow(s);
             Grimoire.jobs.catchUp(s, slice);
             if (Grimoire.estate) {
                 Grimoire.estate.catchUp(s, slice);
                 Grimoire.estate.advanceBuff(s, slice);
             }
+            s.resources.oil -= decay * slice;
+            s.resources.tallow += drip * slice;
+            Grimoire.clampResource(s, 'tallow', Grimoire.candle.tallowCap(s));
+            Grimoire.noteFirstTallow(s);
             remaining -= slice;
             if (s.resources.oil <= 0.0001) {
                 s.resources.oil = 0;
